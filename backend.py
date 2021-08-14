@@ -8,7 +8,7 @@ def row_column(row_column_list):
 class DiscordDatabase:
 
     def __init__(self):
-        self.connection = sqlite3.connect(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\discord.db")
+        self.connection = sqlite3.connect(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\discordOasisData.db")
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE IF NOT EXISTS members ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
@@ -17,14 +17,18 @@ class DiscordDatabase:
                             "timestampJoined REAL NOT NULL,"
                             "timestampLastMessage REAL NOT NULL,"
                             "rulesReaction INTEGER NOT NULL,"
-                            "isVerified INTEGER NOT NULL"
+                            "numViolations INTEGER NOT NULL,"
+                            "timestampLastViolation REAL NOT NULL"
                             ")")
-        # memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction, isVerified
+        # memberID, memberUsername, memberName, timestampJoined,
+        # timestampLastMessage, rulesReaction, numViolations, timestampLastViolation
+        # timestamps are real/float because they are in ms
 
-    def insert(self, memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction, isVerified):
-        self.cursor.execute("INSERT INTO members VALUES(?, ?, ?, ?, ?, ?, ?)",
+    def insert(self, memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
+               numViolations, timestampLastViolation):
+        self.cursor.execute("INSERT INTO members VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
                             (memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-                             isVerified))
+                             numViolations, timestampLastViolation))
         self.connection.commit()
 
     def get(self, row_column_list):
