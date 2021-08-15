@@ -33,8 +33,11 @@ class DiscordDatabase:
 
     def get(self, row_column_list):
         rowIdentifier, rowValue, columnIdentifier, columnValue = row_column(row_column_list)
-        self.cursor.execute(f"SELECT {columnIdentifier} FROM members WHERE {rowIdentifier}=?",
-                            (rowValue,))
+        if not (rowIdentifier and rowValue):
+            self.cursor.execute(f"SELECT {columnIdentifier} FROM members")
+        else:
+            self.cursor.execute(f"SELECT {columnIdentifier} FROM members WHERE {rowIdentifier}=?",
+                                (rowValue,))
         return self.cursor.fetchall()
 
     def delete(self, memberID):
