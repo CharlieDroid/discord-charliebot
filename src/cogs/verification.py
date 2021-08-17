@@ -52,7 +52,8 @@ class Verification(commands.Cog):
                                timestampLastMessage=common.timestamp_convert(datetime.now()),
                                rulesReaction=await get_reaction_welcome_message(self.bot, member),
                                numViolations=0,
-                               timestampLastViolation=0)
+                               timestampLastViolation=0,
+                               lastMessage='')
 
     @commands.command(name='welcome', aliases=['w'])
     async def welcome(self, ctx, memberNameID, snowflake):
@@ -68,7 +69,8 @@ class Verification(commands.Cog):
                                        timestampLastMessage=common.timestamp_convert(datetime.now()),
                                        rulesReaction=await get_reaction_welcome_message(self.bot, member),
                                        numViolations=0,
-                                       timestampLastViolation=0)
+                                       timestampLastViolation=0,
+                                       lastMessage='')
             else:
                 await ctx.send(f"{memberNameID} not found!")
 
@@ -99,10 +101,7 @@ class Verification(commands.Cog):
             common.database.update([['memberID', memberID], ['memberUsername', member.name]])
             common.database.update([['memberID', memberID],
                                     ['rulesReaction', await get_reaction_welcome_message(self.bot, member)]])
-
-    @commands.Cog.listener()
-    async def on_member_remove(self, member):
-        common.database.delete(member.id)
+        await ctx.send("Done!")
 
     @commands.command(name='add_database', aliases=['ad'])
     async def add_to_database(self, ctx, *message):
@@ -119,7 +118,8 @@ class Verification(commands.Cog):
                                        timestampLastMessage=common.timestamp_convert(datetime.now()),
                                        rulesReaction=await get_reaction_welcome_message(self.bot, member),
                                        numViolations=0,
-                                       timestampLastViolation=0)
+                                       timestampLastViolation=0,
+                                       lastMessage='')
                 await ctx.send(f"{name} added to database!")
             else:
                 await ctx.send(f"{message[0]} not found!")
@@ -136,10 +136,6 @@ class Verification(commands.Cog):
             await asyncio.sleep(8)
             await message.edit(content=f":cold_sweat:It looks Korean sir.:confounded:")
 
-    @commands.command(name="test", aliases=['t'])
-    async def test(self, ctx):
-        await ctx.author.add_roles(discord.Object(common.member_role_id), reason="test")
-        await ctx.send("Done!")
 
 def setup(bot):
     bot.add_cog(Verification(bot))

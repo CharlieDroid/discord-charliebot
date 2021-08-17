@@ -1,3 +1,6 @@
+memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction, numViolations,
+timestampLastViolation, lastMessage, counter
+
 Blue Bird - 811395967080202290
 Kouツ - 811469931694522398
 Arapunda - 812324184838897684

@@ -17,7 +17,7 @@ async def check_user_id(ctx):
     if ctx.author.id == common.blue_bird_id:
         await ctx.send('Are you mama?')
         return False
-    elif not (ctx.author.id == common.owner_id):
+    elif ctx.author.id != common.owner_id:
         await ctx.send("You are not my father")
         return False
     return True

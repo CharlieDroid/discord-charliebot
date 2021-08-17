@@ -18,17 +18,19 @@ class DiscordDatabase:
                             "timestampLastMessage REAL NOT NULL,"
                             "rulesReaction INTEGER NOT NULL,"
                             "numViolations INTEGER NOT NULL,"
-                            "timestampLastViolation REAL NOT NULL"
+                            "timestampLastViolation REAL NOT NULL,"
+                            "lastMessage TEXT"
                             ")")
         # memberID, memberUsername, memberName, timestampJoined,
-        # timestampLastMessage, rulesReaction, numViolations, timestampLastViolation
+        # timestampLastMessage, rulesReaction, numViolations, timestampLastViolation,
+        # lastMessage
         # timestamps are real/float because they are in ms
 
     def insert(self, memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-               numViolations, timestampLastViolation):
-        self.cursor.execute("INSERT INTO members VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+               numViolations, timestampLastViolation, lastMessage):
+        self.cursor.execute("INSERT INTO members VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-                             numViolations, timestampLastViolation))
+                             numViolations, timestampLastViolation, lastMessage))
         self.connection.commit()
 
     def get(self, row_column_list):
