@@ -44,21 +44,24 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.guild.id == common.oasis_guild_id and message.author.id != common.bot_id:
-            totalTimeMessage = (datetime.now() - common.timestamp_convert(common.database.get(
-                [("memberID", message.author.id), ("timestampLastMessage", "")]
-            )[0][0])).seconds
-            lastMessage = common.database.get([("memberID", message.author.id), ("lastMessage", "")])[0][0]
-            if predict_prob([message.content]) > 0.7 and message.channel.id != common.nsfw_channel_id:
-                await self.add_violation(message)
-            elif (totalTimeMessage < 3) or (SequenceMatcher(None, message.content, lastMessage).quick_ratio() > 0.7):
-                await self.add_counter(message)
-            elif totalTimeMessage > common.minutes_to_seconds(common.temporary_duration):
-                common.database.update([("memberID", message.author.id),
-                                        ("counter", 0)])
-            common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
-            common.database.update([("memberID", message.author.id),
-                                    ("timestampLastMessage", common.timestamp_convert(datetime.now()))])
+        try:
+            if message.guild.id == common.oasis_guild_id and not message.author.bot and not message.channel.is_nsfw():
+                timestampLastMessage = common.database.get([("memberID", message.author.id), ("timestampLastMessage", "")])[0][0]
+                totalTimeMessage = (datetime.now() - common.timestamp_convert(timestampLastMessage)).seconds
+                lastMessage = common.database.get([("memberID", message.author.id), ("lastMessage", "")])[0][0]
+                if predict_prob([message.content]) > 0.7 and message.channel.id != common.nsfw_channel_id:
+                    await self.add_violation(message)
+                elif (totalTimeMessage < 3) or (SequenceMatcher(None, message.content, lastMessage).quick_ratio() > 0.7):
+                    await self.add_counter(message)
+                elif totalTimeMessage > common.minutes_to_seconds(common.temporary_duration):
+                    common.database.update([("memberID", message.author.id),
+                                            ("counter", 0)])
+                if not message.content.startswith(common.bot_prefixes):
+                    common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
+                    common.database.update([("memberID", message.author.id),
+                                            ("timestampLastMessage", common.timestamp_convert(datetime.now()))])
+        except AttributeError:
+            pass
 
     async def add_violation(self, message, messageType=0):
         numViolations = common.database.get([("memberID", message.author.id),
@@ -79,6 +82,7 @@ class Moderation(commands.Cog):
         kickTimeSeconds = common.minutes_to_seconds(common.kick_violation_time)
         banTimeSeconds = common.minutes_to_seconds(common.ban_violation_time)
 
+        print(numViolations)
         ctx = await self.bot.get_context(message)
         if (muteViolationCount < numViolations < (muteViolationCount + 2)) and (totalTimeViolation < muteTimeSeconds):
             return await self.tempmute(ctx, message.author.id)
@@ -86,9 +90,10 @@ class Moderation(commands.Cog):
             return await self.kick(ctx, message.author.id)
         elif (banViolationCount < numViolations < (banViolationCount + 2)) and (totalTimeViolation < banTimeSeconds):
             return await self.ban(ctx, message.author.id)
-        elif totalTimeViolation > banTimeSeconds:
+        elif (numViolations > 0) and (totalTimeViolation > banTimeSeconds):
             numViolations = 0
             common.database.update([("memberID", message.author.id), ("numViolations", numViolations)])
+        print(numViolations)
         await violation_warning(message, numViolations, messageType)
 
     async def add_counter(self, message):
@@ -186,10 +191,6 @@ class Moderation(commands.Cog):
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
             await member.add_roles(discord.Object(common.dj_role_id), reason=None)
-
-    @commands.command(name="test", aliases=['t'])
-    async def test(self, ctx):
-        pass
 
 
 def setup(bot):

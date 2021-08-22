@@ -10,6 +10,9 @@ owner_id = 799843363058221076
 the_council_id = [owner_id, blue_bird_id, kou_id]
 oasis_guild_id = 811395891122012180
 welcome_channel_id = 811395892338622504
+general_channel_id = 811395892338622507  # the council id for now to test
+achievements_channel_id = 878532483354853406
+the_council_channel_id = 815501027381870603
 welcome_message_id = 814157339950841876
 nsfw_channel_id = 811395892338622510
 
@@ -31,11 +34,19 @@ kick_violation_time = 60
 ban_violation_count = 11
 ban_violation_time = 90
 
+bot_prefixes = ('!', '~', '-')
+normal_message_xp = 100
+bot_message_xp = 200
+voice_xp = 451      # multiplied with the minutes
+passive_xp = 60     # multiplied with hours
+
 profanity = [r"https://c.tenor.com/7R0cugwI7k0AAAAC/watch-your-mouth-watch-your-profanity.gif",
              r"https://c.tenor.com/9z0inDzGansAAAAC/tone-watch-your-mouth.gif",
              r"https://c.tenor.com/mHAU_JH6eJYAAAAC/your-language-is-offensive-watch-your-mouth.gif"]
 spamming = [r"https://c.tenor.com/kRKsQcSUmIYAAAAC/no-spam-spam-go-away.gif",
-            r"https://c.tenor.com/pzmfzQWWjLkAAAAC/band-the-muppets.gif"]
+            r"https://c.tenor.com/pzmfzQWWjLkAAAAC/band-the-muppets.gif",
+            r"https://c.tenor.com/ggufgUlr388AAAAd/stop-spamming-no-spamming.gif",
+            r"https://c.tenor.com/mZZoOtDcouoAAAAM/stop-it-get-some-help.gif"]
 database = DiscordDatabase()
 
 
@@ -63,6 +74,24 @@ def snowflake_to_timestamp(snowflake):
 
 def minutes_to_seconds(minutes):
     return minutes * 60
+
+
+def round_off(floatNum):
+    return round(floatNum, 3)
+
+
+def time_delta_to_hours(time_delta):
+    hours = time_delta.days * 24
+    hours += time_delta.seconds / 3600
+    hours += time_delta.microseconds / 3600e6
+    return hours
+
+
+def time_delta_to_minutes(time_delta):
+    minutes = time_delta.days * 1440
+    minutes += time_delta.seconds / 60
+    minutes += time_delta.microseconds / 6e7
+    return minutes
 
 
 def get_member(bot, memberNameID):

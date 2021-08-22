@@ -30,6 +30,19 @@ async def get_reaction_welcome_message(bot, member):
     return 2
 
 
+async def database_insert(memberID, memberUsername, timestampJoined, timestampLastMessage, rulesReaction,
+                          memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None):
+    common.database.insert(memberID=memberID,
+                           memberUsername=memberUsername,
+                           memberName=memberName,
+                           timestampJoined=timestampJoined,
+                           timestampLastMessage=timestampLastMessage,
+                           rulesReaction=rulesReaction,
+                           numViolations=numViolations,
+                           timestampLastViolation=timestampLastViolation,
+                           lastMessage=lastMessage)
+
+
 class Verification(commands.Cog):
 
     def __init__(self, bot):
@@ -45,15 +58,11 @@ class Verification(commands.Cog):
         elif self.numPasses > 0:
             self.numPasses -= 1
             await member.add_roles(discord.Object(common.member_role_id), reason="Just joined")
-        common.database.insert(memberID=member.id,
-                               memberUsername=member.name,
-                               memberName="N/A",
-                               timestampJoined=timestamp_now,
-                               timestampLastMessage=common.timestamp_convert(datetime.now()),
-                               rulesReaction=await get_reaction_welcome_message(self.bot, member),
-                               numViolations=0,
-                               timestampLastViolation=0,
-                               lastMessage='')
+        await database_insert(memberID=member.id,
+                              memberUsername=member.name,
+                              timestampJoined=timestamp_now,
+                              timestampLastMessage=timestamp_now,
+                              rulesReaction=await get_reaction_welcome_message(self.bot, member))
 
     @commands.command(name='welcome', aliases=['w'])
     async def welcome(self, ctx, memberNameID, snowflake):
@@ -62,15 +71,11 @@ class Verification(commands.Cog):
             if member:
                 await member.send(common.welcome_message(member))
                 await member.add_roles(discord.Object(common.unknown_role_id), reason="Just joined")
-                common.database.insert(memberID=member.id,
-                                       memberUsername=member.name,
-                                       memberName="N/A",
-                                       timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
-                                       timestampLastMessage=common.timestamp_convert(datetime.now()),
-                                       rulesReaction=await get_reaction_welcome_message(self.bot, member),
-                                       numViolations=0,
-                                       timestampLastViolation=0,
-                                       lastMessage='')
+                await database_insert(memberID=member.id,
+                                      memberUsername=member.name,
+                                      timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
+                                      timestampLastMessage=common.timestamp_convert(datetime.now()),
+                                      rulesReaction=await get_reaction_welcome_message(self.bot, member))
             else:
                 await ctx.send(f"{memberNameID} not found!")
 
@@ -92,20 +97,18 @@ class Verification(commands.Cog):
 
             common.database.update([["memberID", payload.member.id], ["rulesReaction", reaction]])
 
-    @commands.command(name="update_members", aliases=["um"])
-    async def update_members(self, ctx):
+    @commands.Cog.listener()
+    async def on_ready(self):
         memberID_list = common.database.get([['', ''], ['memberID', '']])
         for member_tuple in memberID_list:
             memberID = member_tuple[0]
             member = common.get_member(self.bot, memberID)
             common.database.update([['memberID', memberID], ['memberUsername', member.name]])
-            common.database.update([['memberID', memberID],
-                                    ['rulesReaction', await get_reaction_welcome_message(self.bot, member)]])
-        await ctx.send("Done!")
+        print("Updated member usernames and formerly rules reaction!")
 
     @commands.command(name='add_database', aliases=['ad'])
     async def add_to_database(self, ctx, *message):
-        # memberUsername or ID, snowFlakeID
+        # memberUsername or ID, name, snowflake
         if ctx.author.id in common.the_council_id:
             member = common.get_member(self.bot, message[0])
             if member:
@@ -116,10 +119,7 @@ class Verification(commands.Cog):
                                        memberName=name,
                                        timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
                                        timestampLastMessage=common.timestamp_convert(datetime.now()),
-                                       rulesReaction=await get_reaction_welcome_message(self.bot, member),
-                                       numViolations=0,
-                                       timestampLastViolation=0,
-                                       lastMessage='')
+                                       rulesReaction=await get_reaction_welcome_message(self.bot, member))
                 await ctx.send(f"{name} added to database!")
             else:
                 await ctx.send(f"{message[0]} not found!")
