@@ -20,16 +20,21 @@ class DiscordDatabase:
                             "rulesReaction INTEGER NOT NULL DEFAULT 0,"
                             "numViolations INTEGER NOT NULL DEFAULT 0,"
                             "timestampLastViolation REAL NOT NULL DEFAULT 0,"
-                            "lastMessage TEXT NOT NULL DEFAULT ''"
+                            "lastMessage TEXT NOT NULL DEFAULT '',"
+                            "counter INTEGER NOT NULL DEFAULT 0"
                             ")")
         self.cursor.execute("CREATE TABLE IF NOT EXISTS leveling ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
                             "memberUsername TEXT NOT NULL,"
                             "level INTEGER NOT NULL DEFAULT 0,"
                             "experience REAL NOT NULL DEFAULT 0,"
-                            "previousExeprience REAL NOT NULL DEFAULT 0,"
+                            "previousExperience REAL NOT NULL DEFAULT 0,"
                             "timestampLastUpdate REAL NOT NULL DEFAULT 0,"
-                            "timestampLastVoice REAL NOT NULL DEFAULT 0"
+                            "timestampLastVoice REAL NOT NULL DEFAULT 0,"
+                            "addXPVoice BOOLEAN NOT NULL DEFAULT FALSE,"
+                            "messages INTEGER NOT NULL DEFAULT 0,"
+                            "voiceMinutes REAL NOT NULL DEFAULT 0,"
+                            "passiveHours REAL NOT NULL DEFAULT 0"
                             ")")
         # memberID, memberUsername, memberName, timestampJoined,
         # timestampLastMessage, rulesReaction, numViolations, timestampLastViolation,
@@ -37,10 +42,12 @@ class DiscordDatabase:
         # timestamps are real/float because they are in ms
 
     def insert(self, memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-               numViolations, timestampLastViolation, lastMessage, dbTable="members"):
-        self.cursor.execute(f"INSERT INTO {dbTable} VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               numViolations, timestampLastViolation, lastMessage, counter, dbTable="members"):
+        self.cursor.execute(f"INSERT INTO {dbTable} VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-                             numViolations, timestampLastViolation, lastMessage))
+                             numViolations, timestampLastViolation, lastMessage, counter))
+        self.cursor.execute(f"INSERT INTO leveling(memberID, memberUsername) VALUES(?, ?)",
+                            (memberID, memberUsername))
         self.connection.commit()
 
     def get(self, row_column_list, dbTable="members"):

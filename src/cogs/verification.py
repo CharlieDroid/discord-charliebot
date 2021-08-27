@@ -31,7 +31,7 @@ async def get_reaction_welcome_message(bot, member):
 
 
 async def database_insert(memberID, memberUsername, timestampJoined, timestampLastMessage, rulesReaction,
-                          memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None):
+                          memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None, counter=0):
     common.database.insert(memberID=memberID,
                            memberUsername=memberUsername,
                            memberName=memberName,
@@ -40,7 +40,8 @@ async def database_insert(memberID, memberUsername, timestampJoined, timestampLa
                            rulesReaction=rulesReaction,
                            numViolations=numViolations,
                            timestampLastViolation=timestampLastViolation,
-                           lastMessage=lastMessage)
+                           lastMessage=lastMessage,
+                           counter=counter)
 
 
 class Verification(commands.Cog):

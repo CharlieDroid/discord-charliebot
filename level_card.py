@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
+from common import xp_readability
 
 
 def crop_to_square(im):
@@ -10,27 +11,21 @@ def crop_to_square(im):
     return im
 
 
-def xp_readability(xp):
-    if xp > 9999:
-        xp /= 1000
-        xp = str(round(xp, 1)) + 'k'
-    elif type(xp) != int:
-        xp = str(round(xp, 0))[:-2]
-    else:
-        xp = str(xp)
-    return xp
-
-
 class LevelCard:
 
     def __init__(self, imageName, username, discriminator, currentXP, neededXP, rank, level, status, imageObject=None):
+        # margin and font sizes
+        self.margin, self.textMargin = 20, 10
+        self.smallFontSize, self.mediumFontSize = 30, 35
+
         # size of thumbnail, bar, and card
-        self.thumbnailSize = (100, 100)
-        self.barSize = (355, 25)
-        self.statusSize = (25, 25)
-        self.canvasSize = (500, 130)
+        discordPixelLimit = 128
+        self.canvasSize = (discordPixelLimit * 8, discordPixelLimit * 2)
+        self.thumbnailSize = (self.canvasSize[1] - self.margin * 2, self.canvasSize[1] - self.margin * 2)
+        self.barSize = (self.canvasSize[0] - (self.thumbnailSize[0] + self.margin * 3), self.thumbnailSize[0] / 4)
+        self.statusSize = (self.thumbnailSize[0] / 4, self.thumbnailSize[0] / 4)
         self.statusBorderSize = 8
-        self.radius = 10
+        self.radius = 30
 
         # colors
         self.midnightColor = (0, 4, 13)
@@ -45,24 +40,19 @@ class LevelCard:
         self.decoColor = self.pastelOrangeColor
         self.textColor = self.pastelWhite
 
-        # margin and font sizes
-        self.margin, self.textMargin = 15, 8
-        self.mediumFontSize, self.largeFontSize = 15, 22
-
         # name of image for thumbnail and what to name it when saving
         if not imageObject:
             self.imageName = imageName
             self.saveImageName = self.imageName[:-4] + ".png"
-            self.imageObject = Image.open(self.imageName)
+            self.imageObject = Image.open(self.imageName).convert("RGBA")
         else:
-            self.imageObject = imageObject
+            self.imageObject = imageObject.convert("RGBA")
 
         # font type and different sizes of the font
-        self.fontType = r"C:\Windows\Fonts\Arial.ttf"
-        self.boldFont = r"C:\Windows\Fonts\Arial\arialbd.ttf"
-        self.mediumFont = ImageFont.truetype(self.fontType, self.mediumFontSize)
-        self.largeFont = ImageFont.truetype(self.fontType, self.largeFontSize)
-        self.boldLargeFont = ImageFont.truetype(self.boldFont, self.largeFontSize)
+        self.normalFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica.ttf"
+        self.boldFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica-Bold.ttf"
+        self.mediumFont = ImageFont.truetype(self.normalFont, self.smallFontSize)
+        self.boldLargeFont = ImageFont.truetype(self.boldFont, self.mediumFontSize)
 
         # text related initialization about the card
         self.username = username
@@ -86,7 +76,7 @@ class LevelCard:
         self.draw_status()
 
     def draw_canvas(self):
-        self.draw.rounded_rectangle((0, 0, self.canvasSize[0], self.canvasSize[1]), radius=self.radius, fill=self.midnightColor)
+        self.draw.rounded_rectangle((0, 0, self.canvasSize[0], self.canvasSize[1]), radius=self.radius / 2, fill=self.midnightColor)
         barStartLoc = self.margin * 2 + self.thumbnailSize[0]
         barHeightStartLoc = self.margin + self.thumbnailSize[1] - self.barSize[1]
         self.draw.rounded_rectangle(
@@ -94,8 +84,8 @@ class LevelCard:
              self.barSize[0] + barStartLoc, barHeightStartLoc + self.barSize[1]),
             radius=self.radius, fill=self.nightGreyColor)
 
-        barPixelSize = round(self.barSize[0] * self.barRatio, 0)
-        barPixelThreshold = 19
+        barPixelSize = int(round(self.barSize[0] * self.barRatio, 0))
+        barPixelThreshold = 60
         if barPixelSize > barPixelThreshold:
             self.draw.rounded_rectangle(
                 (barStartLoc, barHeightStartLoc,
@@ -103,31 +93,61 @@ class LevelCard:
                 radius=self.radius, fill=self.decoColor)
         else:
             if barPixelSize > 0:
-                pixelDifference = 7
-                self.draw.line((barStartLoc, barHeightStartLoc + pixelDifference,
-                                barStartLoc, barHeightStartLoc + self.barSize[1] - pixelDifference),
-                               fill=self.decoColor)
-            if barPixelSize > 1:
-                for barPixel in range(1, barPixelSize):
-                    barPixel += 1
+                # 0.5 -5.5 29
+                for barPixel in range(1, barPixelSize + 1):
                     if barPixel > 5:
                         break
-                    pixelDifference = barPixel * -1 + 7
+                    pixelDifference = 0.5*(barPixel*barPixel) - 5.5*barPixel + 29
                     self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
                                     barStartLoc + (barPixel - 1), barHeightStartLoc + self.barSize[1] - pixelDifference),
                                    fill=self.decoColor)
             if barPixelSize > 5:
-                for barPixel in range(5, barPixelSize):
-                    barPixel += 1
-                    if barPixel > 7:
+                for barPixel in range(6, barPixelSize + 1):
+                    if barPixel > 13:
+                        break
+                    pixelDifference = -1*barPixel + 18
+                    self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
+                                    barStartLoc + (barPixel - 1),
+                                    barHeightStartLoc + self.barSize[1] - pixelDifference),
+                                   fill=self.decoColor)
+            if barPixelSize > 13:
+                for barPixel in range(14, barPixelSize + 1):
+                    if barPixel > 15:
+                        break
+                    pixelDifference = 4
+                    self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
+                                    barStartLoc + (barPixel - 1),
+                                    barHeightStartLoc + self.barSize[1] - pixelDifference),
+                                   fill=self.decoColor)
+            if barPixelSize > 15:
+                for barPixel in range(16, barPixelSize + 1):
+                    if barPixel > 17:
+                        break
+                    pixelDifference = 3
+                    self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
+                                    barStartLoc + (barPixel - 1),
+                                    barHeightStartLoc + self.barSize[1] - pixelDifference),
+                                   fill=self.decoColor)
+            if barPixelSize > 17:
+                for barPixel in range(18, barPixelSize + 1):
+                    if barPixel > 20:
+                        break
+                    pixelDifference = 2
+                    self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
+                                    barStartLoc + (barPixel - 1),
+                                    barHeightStartLoc + self.barSize[1] - pixelDifference),
+                                   fill=self.decoColor)
+            if barPixelSize > 20:
+                for barPixel in range(21, barPixelSize + 1):
+                    if barPixel > 23:
                         break
                     pixelDifference = 1
                     self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc + pixelDifference,
-                                    barStartLoc + (barPixel - 1), barHeightStartLoc + self.barSize[1] - pixelDifference),
+                                    barStartLoc + (barPixel - 1),
+                                    barHeightStartLoc + self.barSize[1] - pixelDifference),
                                    fill=self.decoColor)
-            if barPixelSize > 7:
-                for barPixel in range(7, barPixelSize):
-                    barPixel += 1
+            if barPixelSize > 23:
+                for barPixel in range(24, barPixelSize + 1):
                     if barPixel > barPixelThreshold:
                         break
                     self.draw.line((barStartLoc + (barPixel - 1), barHeightStartLoc,
@@ -135,29 +155,41 @@ class LevelCard:
                                    fill=self.decoColor)
 
     def write_text(self):
-        textWidth, textHeight = self.mediumFont.getsize(self.nameDiscriminator)
+        # username
+        usernameWidth, usernameHeight = self.boldLargeFont.getsize(self.username)
         self.draw.text((self.margin * 2 + self.thumbnailSize[0],
-                        self.margin + self.thumbnailSize[1] - self.barSize[1] - self.textMargin - textHeight),
-                       self.nameDiscriminator, font=self.mediumFont, fill=self.textColor)
-        textXpWidth, textXpHeight = self.mediumFont.getsize(self.textXp)
+                        self.margin + self.thumbnailSize[1] - self.barSize[1] - self.textMargin - usernameHeight),
+                       self.username, font=self.boldLargeFont, fill=self.textColor)
+
+        # discriminator
+        discriminatorWidth, discriminatorHeight = self.mediumFont.getsize(self.discriminator)
+        self.draw.text((self.margin * 2 + self.thumbnailSize[0] + usernameWidth + self.textMargin,
+                        self.margin + self.thumbnailSize[1] - self.barSize[1] - self.textMargin - discriminatorHeight),
+                       self.discriminator, font=self.mediumFont, fill=self.textColor)
+        # xp
+        textXpWidth, textXpHeight = self.boldLargeFont.getsize(self.textXp)
         self.draw.text((self.margin * 2 + self.thumbnailSize[0] + self.barSize[0] - textXpWidth,
                         self.margin + self.thumbnailSize[1] - self.barSize[1] - self.textMargin - textXpHeight),
-                       self.textXp, font=self.mediumFont, fill=self.decoColor)
+                       self.textXp, font=self.boldLargeFont, fill=self.decoColor)
 
-        levelWidth, levelHeight = self.largeFont.getsize(self.level)
+        # Level number
+        levelWidth, levelHeight = self.boldLargeFont.getsize(self.level)
         levelLoc = self.canvasSize[0] - self.margin - levelWidth
         self.draw.text((levelLoc, self.margin),
-                       self.level, font=self.largeFont, fill=self.decoColor)
+                       self.level, font=self.boldLargeFont, fill=self.decoColor)
 
+        # Level text
         textLvlWidth, textLvlHeight = self.boldLargeFont.getsize(self.textLevel)
         textLvlLoc = levelLoc - textLvlWidth - self.textMargin
         self.draw.text((textLvlLoc, self.margin + levelHeight - textLvlHeight),
                        self.textLevel, font=self.boldLargeFont, fill=self.textColor)
 
-        rankWidth, rankHeight = self.largeFont.getsize(self.rank)
+        # Rank number
+        rankWidth, rankHeight = self.boldLargeFont.getsize(self.rank)
         rankLoc = textLvlLoc - rankWidth - self.textMargin
-        self.draw.text((rankLoc, self.margin), self.rank, font=self.largeFont, fill=self.decoColor)
+        self.draw.text((rankLoc, self.margin), self.rank, font=self.boldLargeFont, fill=self.decoColor)
 
+        # Rank text
         textRnkWidth, textRnkHeight = self.boldLargeFont.getsize(self.textRank)
         textRankLoc = rankLoc - textRnkWidth - self.textMargin
         self.draw.text((textRankLoc, self.margin + rankHeight - textRnkHeight),
@@ -175,17 +207,16 @@ class LevelCard:
         self.canvas.paste(im, (self.margin, self.margin), im)
 
     def draw_status(self):
-        self.draw.ellipse((self.margin + self.thumbnailSize[0] - self.statusSize[0] - self.statusBorderSize,
-                           self.margin + self.thumbnailSize[1] - self.statusSize[1] - self.statusBorderSize,
-                           self.margin + self.thumbnailSize[0] + self.statusBorderSize,
-                           self.margin + self.thumbnailSize[1] + self.statusBorderSize),
-                          fill=self.midnightColor)
-        self.draw.ellipse((self.margin + self.thumbnailSize[0] - self.statusSize[0],
-                           self.margin + self.thumbnailSize[1] - self.statusSize[1],
+        self.draw.ellipse((self.margin + self.thumbnailSize[0] - self.statusBorderSize * 2 - self.statusSize[0],
+                           self.margin + self.thumbnailSize[1] - self.statusBorderSize * 2 - self.statusSize[0],
                            self.margin + self.thumbnailSize[0],
                            self.margin + self.thumbnailSize[1]),
+                          fill=self.midnightColor)
+        self.draw.ellipse((self.margin + self.thumbnailSize[0] - self.statusSize[0] - self.statusBorderSize,
+                           self.margin + self.thumbnailSize[1] - self.statusSize[1] - self.statusBorderSize,
+                           self.margin + self.thumbnailSize[0] - self.statusBorderSize,
+                           self.margin + self.thumbnailSize[1] - self.statusBorderSize),
                           fill=self.statusColor)
-        self.canvas.resize(self.canvasSize, resample=Image.ANTIALIAS)
 
     def save(self):
         self.canvas.save(self.saveImageName)

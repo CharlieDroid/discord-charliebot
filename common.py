@@ -47,6 +47,7 @@ spamming = [r"https://c.tenor.com/kRKsQcSUmIYAAAAC/no-spam-spam-go-away.gif",
             r"https://c.tenor.com/pzmfzQWWjLkAAAAC/band-the-muppets.gif",
             r"https://c.tenor.com/ggufgUlr388AAAAd/stop-spamming-no-spamming.gif",
             r"https://c.tenor.com/mZZoOtDcouoAAAAM/stop-it-get-some-help.gif"]
+bad_words = ["fck", "fcking"]
 database = DiscordDatabase()
 
 
@@ -54,7 +55,7 @@ def welcome_message(member):
     return f"**TL;DR Click :white_check_mark: in welcome channel.**\nGreetings {member.name}, I welcome you to the " \
            f"{member.guild.name} server! :gem:\nRead and understand the rules in the welcome channel and react " \
            f":white_check_mark: if you agree.\n\nInvite your friends to the {member.guild.name} server!\nUse the " \
-           f"link: https://discord.gg/XgATq33NGp :mailbox_with_mail:"
+           f"link: https://discord.gg/T2ve5dZ82h :mailbox_with_mail:"
 
 
 def emoji_convert(emoji_str_int):
@@ -103,3 +104,17 @@ def get_member(bot, memberNameID):
     if not member:
         return False
     return member
+
+
+def xp_readability(xp):
+    if xp > 999999:
+        xp /= 1e6
+        xp = str(round(xp, 1)) + 'M'
+    elif xp > 9999:
+        xp /= 1e3
+        xp = str(round(xp, 1)) + 'k'
+    elif type(xp) != int:
+        xp = str(round(xp, 0))[:-2]
+    else:
+        xp = str(xp)
+    return xp
