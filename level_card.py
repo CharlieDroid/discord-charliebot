@@ -1,5 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
-from common import xp_readability
+from common import number_readability
 
 
 def crop_to_square(im):
@@ -59,8 +59,8 @@ class LevelCard:
         self.discriminator = '#' + str(discriminator)
         self.nameDiscriminator = self.username + ' ' + self.discriminator
         self.barRatio = currentXP / neededXP
-        self.currentXP = xp_readability(currentXP)
-        self.neededXP = xp_readability(neededXP)
+        self.currentXP = number_readability(currentXP)
+        self.neededXP = number_readability(neededXP)
         self.textXp = self.currentXP + " / " + self.neededXP + " XP"
         self.rank = '#' + str(rank)
         self.level = str(level)
@@ -76,7 +76,8 @@ class LevelCard:
         self.draw_status()
 
     def draw_canvas(self):
-        self.draw.rounded_rectangle((0, 0, self.canvasSize[0], self.canvasSize[1]), radius=self.radius / 2, fill=self.midnightColor)
+        self.draw.rounded_rectangle((0, 0, self.canvasSize[0], self.canvasSize[1]),
+                                    radius=self.radius / 2, fill=self.midnightColor)
         barStartLoc = self.margin * 2 + self.thumbnailSize[0]
         barHeightStartLoc = self.margin + self.thumbnailSize[1] - self.barSize[1]
         self.draw.rounded_rectangle(

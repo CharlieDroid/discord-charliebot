@@ -106,15 +106,15 @@ def get_member(bot, memberNameID):
     return member
 
 
-def xp_readability(xp):
-    if xp > 999999:
-        xp /= 1e6
-        xp = str(round(xp, 1)) + 'M'
-    elif xp > 9999:
-        xp /= 1e3
-        xp = str(round(xp, 1)) + 'k'
-    elif type(xp) != int:
-        xp = str(round(xp, 0))[:-2]
+def number_readability(num):
+    if num > 999999:
+        num /= 1e6
+        num = str(round(num, 1)) + 'M'
+    elif num > 9999:
+        num /= 1e3
+        num = str(round(num, 1)) + 'k'
+    elif type(num) != int:
+        num = str(round(num, 0))[:-2]
     else:
-        xp = str(xp)
-    return xp
+        num = str(num)
+    return num

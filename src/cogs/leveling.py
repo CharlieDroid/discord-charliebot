@@ -11,7 +11,6 @@ from datetime import datetime
 from discord.ext import commands
 """
 Soon to be added:
-Fix for what happens when someone leaves (stop passive xp)
 Leaderboards
 """
 
@@ -42,9 +41,11 @@ async def add_voice_minutes(author_id, voice_minutes):
 
 
 async def add_passive_hours(author_id, passive_hours):
-    old_passive_hours = common.database.get([("memberID", author_id), ("passiveHours", '')], dbTable="leveling")[0][0]
-    common.database.update([("memberID", author_id), ("passiveHours", common.round_off(old_passive_hours + passive_hours))],
-                           dbTable="leveling")
+    inServer = common.database.get([("memberID", author_id), ("inServer", '')])[0][0]
+    if inServer:
+        old_passive_hours = common.database.get([("memberID", author_id), ("passiveHours", '')], dbTable="leveling")[0][0]
+        common.database.update([("memberID", author_id), ("passiveHours", common.round_off(old_passive_hours + passive_hours))],
+                               dbTable="leveling")
 
 
 async def add_experience(xp, author_id, timestampUpdated=None):

@@ -21,7 +21,8 @@ class DiscordDatabase:
                             "numViolations INTEGER NOT NULL DEFAULT 0,"
                             "timestampLastViolation REAL NOT NULL DEFAULT 0,"
                             "lastMessage TEXT NOT NULL DEFAULT '',"
-                            "counter INTEGER NOT NULL DEFAULT 0"
+                            "counter INTEGER NOT NULL DEFAULT 0,"
+                            "inServer BOOLEAN NOT NULL DEFAULT True"
                             ")")
         self.cursor.execute("CREATE TABLE IF NOT EXISTS leveling ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
@@ -42,10 +43,10 @@ class DiscordDatabase:
         # timestamps are real/float because they are in ms
 
     def insert(self, memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-               numViolations, timestampLastViolation, lastMessage, counter, dbTable="members"):
-        self.cursor.execute(f"INSERT INTO {dbTable} VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               numViolations, timestampLastViolation, lastMessage, counter, inServer, dbTable="members"):
+        self.cursor.execute(f"INSERT INTO {dbTable} VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (memberID, memberUsername, memberName, timestampJoined, timestampLastMessage, rulesReaction,
-                             numViolations, timestampLastViolation, lastMessage, counter))
+                             numViolations, timestampLastViolation, lastMessage, counter, inServer))
         self.cursor.execute(f"INSERT INTO leveling(memberID, memberUsername) VALUES(?, ?)",
                             (memberID, memberUsername))
         self.connection.commit()

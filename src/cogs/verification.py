@@ -31,7 +31,8 @@ async def get_reaction_welcome_message(bot, member):
 
 
 async def database_insert(memberID, memberUsername, timestampJoined, timestampLastMessage, rulesReaction,
-                          memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None, counter=0):
+                          memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None,
+                          inServer=True, counter=0):
     common.database.insert(memberID=memberID,
                            memberUsername=memberUsername,
                            memberName=memberName,
@@ -41,7 +42,8 @@ async def database_insert(memberID, memberUsername, timestampJoined, timestampLa
                            numViolations=numViolations,
                            timestampLastViolation=timestampLastViolation,
                            lastMessage=lastMessage,
-                           counter=counter)
+                           counter=counter,
+                           inServer=inServer)
 
 
 class Verification(commands.Cog):
@@ -59,11 +61,22 @@ class Verification(commands.Cog):
         elif self.numPasses > 0:
             self.numPasses -= 1
             await member.add_roles(discord.Object(common.member_role_id), reason="Just joined")
-        await database_insert(memberID=member.id,
-                              memberUsername=member.name,
-                              timestampJoined=timestamp_now,
-                              timestampLastMessage=timestamp_now,
-                              rulesReaction=await get_reaction_welcome_message(self.bot, member))
+        memberUsername = common.database.get([("memberID", member.id), ("memberUsername", '')])
+        if not memberUsername:
+            await database_insert(memberID=member.id,
+                                  memberUsername=member.name,
+                                  timestampJoined=timestamp_now,
+                                  timestampLastMessage=timestamp_now,
+                                  rulesReaction=await get_reaction_welcome_message(self.bot, member))
+        else:
+            common.database.update([("memberID", member.id), ("timestampJoined", timestamp_now)])
+            common.database.update([("memberID", member.id), ("timestampLastUpdate", timestamp_now)],
+                                   dbTable="leveling")
+            common.database.update([("memberID", member.id), ("inServer", True)])
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        common.database.update([("memberID", member.id), ("inServer", False)])
 
     @commands.command(name='welcome', aliases=['w'])
     async def welcome(self, ctx, memberNameID, snowflake):
