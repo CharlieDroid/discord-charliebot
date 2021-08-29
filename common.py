@@ -11,7 +11,7 @@ the_council_id = [owner_id, blue_bird_id, kou_id]
 oasis_guild_id = 811395891122012180
 welcome_channel_id = 811395892338622504
 general_channel_id = 811395892338622507  # the council id for now to test
-achievements_channel_id = 878532483354853406
+achievements_channel_id = 881400374085443614
 the_council_channel_id = 815501027381870603
 welcome_message_id = 814157339950841876
 nsfw_channel_id = 811395892338622510
@@ -37,8 +37,15 @@ ban_violation_time = 90
 bot_prefixes = ('!', '~', '-')
 normal_message_xp = 100
 bot_message_xp = 200
-voice_xp = 451      # multiplied with the minutes
-passive_xp = 60     # multiplied with hours
+voice_xp = 451  # multiplied with the minutes
+passive_xp = 60  # multiplied with hours
+leaderboard_controls = ["⏮️",
+                        "⏪",
+                        "◀️",
+                        "🔄",
+                        "▶️",
+                        "⏩",
+                        "⏭️"]
 
 profanity = [r"https://c.tenor.com/7R0cugwI7k0AAAAC/watch-your-mouth-watch-your-profanity.gif",
              r"https://c.tenor.com/9z0inDzGansAAAAC/tone-watch-your-mouth.gif",
@@ -64,7 +71,8 @@ def emoji_convert(emoji_str_int):
 
 
 def timestamp_convert(datetime_float_obj):
-    return datetime.fromtimestamp(datetime_float_obj) if type(datetime_float_obj) == float else datetime_float_obj.timestamp()
+    return datetime.fromtimestamp(datetime_float_obj) if type(
+        datetime_float_obj) == float else datetime_float_obj.timestamp()
 
 
 def snowflake_to_timestamp(snowflake):

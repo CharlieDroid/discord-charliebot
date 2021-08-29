@@ -37,6 +37,9 @@ class DiscordDatabase:
                             "voiceMinutes REAL NOT NULL DEFAULT 0,"
                             "passiveHours REAL NOT NULL DEFAULT 0"
                             ")")
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS memory ("
+                            "leaderboardMessageID INTEGER NOT NULL DEFAULT 0"
+                            ")")
         # memberID, memberUsername, memberName, timestampJoined,
         # timestampLastMessage, rulesReaction, numViolations, timestampLastViolation,
         # lastMessage
@@ -49,6 +52,7 @@ class DiscordDatabase:
                              numViolations, timestampLastViolation, lastMessage, counter, inServer))
         self.cursor.execute(f"INSERT INTO leveling(memberID, memberUsername) VALUES(?, ?)",
                             (memberID, memberUsername))
+        # must insert value 0 in memory because no row will be made
         self.connection.commit()
 
     def get(self, row_column_list, dbTable="members"):
@@ -67,17 +71,25 @@ class DiscordDatabase:
                             f"FROM leveling")
         return self.cursor.fetchall()
 
+    def get_stats(self):
+        self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, messages, "
+                            f"voiceMinutes, passiveHours, experience, level, memberID FROM leveling")
+        return self.cursor.fetchall()
+
     def delete(self, memberID, dbTable="members"):
         self.cursor.execute(f"DELETE FROM {dbTable} WHERE 'memberID'=?", (memberID,))
         self.connection.commit()
 
     def update(self, row_column_list, dbTable="members"):
         rowIdentifier, rowValue, columnIdentifier, columnValue = row_column(row_column_list)
-        self.cursor.execute(f"UPDATE {dbTable} SET {columnIdentifier}=? WHERE {rowIdentifier}=?",
-                            (columnValue, rowValue))
+        if not (rowIdentifier and rowValue):
+            self.cursor.execute(f"UPDATE {dbTable} SET {columnIdentifier}=?",
+                                (columnValue,))
+        else:
+            self.cursor.execute(f"UPDATE {dbTable} SET {columnIdentifier}=? WHERE {rowIdentifier}=?",
+                                (columnValue, rowValue))
+
         self.connection.commit()
-
-
 
     def __del__(self):
         self.connection.close()
