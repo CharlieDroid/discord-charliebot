@@ -26,7 +26,7 @@ unknown_role_id = 814155609158713414
 all_roles = [admin_role_id, based_zeus_role_id, mod_role_id, dj_role_id, member_role_id]
 
 temporary_duration = 5
-counter_count = 2
+counter_count = 5
 mute_violation_count = 2
 mute_violation_time = 30
 kick_violation_count = 7
@@ -34,7 +34,7 @@ kick_violation_time = 60
 ban_violation_count = 11
 ban_violation_time = 90
 
-bot_prefixes = ('!', '~', '-')
+bot_prefixes = ('!', '~', '-', '_', '.')
 normal_message_xp = 100
 bot_message_xp = 200
 voice_xp = 451  # multiplied with the minutes
@@ -112,6 +112,10 @@ def get_member(bot, memberNameID):
     if not member:
         return False
     return member
+
+
+def check_plural(num):
+    return 's' if num > 1 else ''
 
 
 def number_readability(num):

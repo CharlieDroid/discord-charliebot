@@ -2,7 +2,6 @@
 Don't use fetch_guild bro
 """
 import sys
-import asyncio
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 import common
@@ -54,25 +53,26 @@ class Verification(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        timestamp_now = common.timestamp_convert(datetime.now())
-        await member.send(common.welcome_message(member))
-        if self.numPasses == 0:
-            await member.add_roles(discord.Object(common.unknown_role_id), reason="Just joined")
-        elif self.numPasses > 0:
-            self.numPasses -= 1
-            await member.add_roles(discord.Object(common.member_role_id), reason="Just joined")
-        memberUsername = common.database.get([("memberID", member.id), ("memberUsername", '')])
-        if not memberUsername:
-            await database_insert(memberID=member.id,
-                                  memberUsername=member.name,
-                                  timestampJoined=timestamp_now,
-                                  timestampLastMessage=timestamp_now,
-                                  rulesReaction=await get_reaction_welcome_message(self.bot, member))
-        else:
-            common.database.update([("memberID", member.id), ("timestampJoined", timestamp_now)])
-            common.database.update([("memberID", member.id), ("timestampLastUpdate", timestamp_now)],
-                                   dbTable="leveling")
-            common.database.update([("memberID", member.id), ("inServer", True)])
+        if not member.bot:
+            timestamp_now = common.timestamp_convert(datetime.now())
+            await member.send(common.welcome_message(member))
+            if self.numPasses == 0:
+                await member.add_roles(discord.Object(common.unknown_role_id), reason="Just joined")
+            elif self.numPasses > 0:
+                self.numPasses -= 1
+                await member.add_roles(discord.Object(common.member_role_id), reason="Just joined")
+            memberUsername = common.database.get([("memberID", member.id), ("memberUsername", '')])
+            if not memberUsername:
+                await database_insert(memberID=member.id,
+                                      memberUsername=member.name,
+                                      timestampJoined=timestamp_now,
+                                      timestampLastMessage=timestamp_now,
+                                      rulesReaction=await get_reaction_welcome_message(self.bot, member))
+            else:
+                common.database.update([("memberID", member.id), ("timestampJoined", timestamp_now)])
+                common.database.update([("memberID", member.id), ("timestampLastUpdate", timestamp_now)],
+                                       dbTable="leveling")
+                common.database.update([("memberID", member.id), ("inServer", True)])
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
@@ -118,7 +118,6 @@ class Verification(commands.Cog):
             memberID = member_tuple[0]
             member = common.get_member(self.bot, memberID)
             common.database.update([['memberID', memberID], ['memberUsername', member.name]])
-        print("Updated member usernames and formerly rules reaction!")
 
     @commands.command(name='add_database', aliases=['ad'])
     async def add_to_database(self, ctx, *message):
@@ -139,16 +138,8 @@ class Verification(commands.Cog):
                 await ctx.send(f"{message[0]} not found!")
 
     @commands.command(name="you_shall_pass")
-    async def you_shall_pass(self, ctx, numPasses):
+    async def you_shall_pass(self, ctx, numPasses=1):
         self.numPasses = int(numPasses)
-
-    @commands.command(name="charlie_analysis", aliases=["ca"])
-    async def charlie_analysis(self, ctx):
-        if ctx.author.id == common.owner_id:
-            message = await ctx.reply(f":face_with_monocle:")
-            await ctx.trigger_typing()
-            await asyncio.sleep(8)
-            await message.edit(content=f":cold_sweat:It looks Korean sir.:confounded:")
 
 
 def setup(bot):

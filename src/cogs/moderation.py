@@ -14,24 +14,24 @@ profanity.add_censor_words(common.bad_words)
 
 
 def check_author(bot, memberNameID, author_id, author_role_id):
-    if (author_id in common.the_council_id) or (author_role_id == common.admin_role_id):
+    if (author_id == common.bot_id) or (author_id in common.the_council_id) or (author_role_id == common.admin_role_id):
         return common.get_member(bot, memberNameID)
     return 2
 
 
 async def violation_warning(message, numViolations, messageType):
     embed = discord.Embed(
-        title=f"You have {numViolations} violation{'s' if numViolations > 1 else ''} now.",
+        title=f"You have {numViolations} violation{common.check_plural(numViolations)} now.",
         colour=discord.Colour.from_rgb(255, 69, 61))
     if (common.mute_violation_count - 2) < numViolations < common.mute_violation_count:
         leftViolations = common.mute_violation_count - numViolations + 1
-        embed.set_footer(text=f"{leftViolations} violation{'s' if leftViolations > 1 else ''} left until muted.")
+        embed.set_footer(text=f"{leftViolations} violation{common.check_plural(leftViolations)} left until muted.")
     elif (common.kick_violation_count - 3) < numViolations < common.kick_violation_count:
         leftViolations = common.kick_violation_count - numViolations + 1
-        embed.set_footer(text=f"{leftViolations} violation{'s' if leftViolations > 1 else ''} left until kicked.")
+        embed.set_footer(text=f"{leftViolations} violation{common.check_plural(leftViolations)} left until kicked.")
     elif (common.ban_violation_count - 3) < numViolations < common.ban_violation_count:
         leftViolations = common.ban_violation_count - numViolations + 1
-        embed.set_footer(text=f"{leftViolations} violation{'s' if leftViolations > 1 else ''} left until banned.")
+        embed.set_footer(text=f"{leftViolations} violation{common.check_plural(leftViolations)} left until banned.")
     if messageType == 0:
         embed.set_image(url=choice(common.profanity))
     elif messageType == 1:
@@ -62,7 +62,7 @@ class Moderation(commands.Cog):
                     common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
                     common.database.update([("memberID", message.author.id),
                                             ("timestampLastMessage", common.timestamp_convert(datetime.now()))])
-        except AttributeError:
+        except (AttributeError, IndexError):
             pass
 
     async def add_violation(self, message, messageType=0):
@@ -100,6 +100,8 @@ class Moderation(commands.Cog):
         elif (banViolationCount < numViolations < (banViolationCount + 2)) and (totalTimeViolation < banTimeSeconds):
             warn = False
             return await self.ban(ctx, author_id, reason="reached 11 warnings and got banned")
+        elif numViolations > (banViolationCount + 8):
+            return await self.ban(ctx, author_id, reason="Too many violations")
         if warn:
             await violation_warning(message, numViolations, messageType)
 
@@ -136,15 +138,22 @@ class Moderation(commands.Cog):
 
     @commands.command(name="mute")
     async def mute(self, ctx, memberNameID, reason="Violation/command from user"):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
             await member.add_roles(discord.Object(common.muted_role_id), reason=reason)
 
+
     @commands.command(name="unmute")
     async def unmute(self, ctx, memberNameID, reason="Done serving his violation/command from user"):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
@@ -154,7 +163,10 @@ class Moderation(commands.Cog):
 
     @commands.command(name="tempmute")
     async def tempmute(self, ctx, memberNameID, duration=5, reason=None):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
@@ -162,13 +174,16 @@ class Moderation(commands.Cog):
                 await ctx.send(f"Mute duration of {duration} is not possible.")
             else:
                 await self.mute(ctx, memberNameID, reason)
-                await ctx.send(f"{member.name} has been muted for {duration} minute{'s' if duration > 1 else ''}.")
+                await ctx.send(f"{member.name} has been muted for {duration} minute{common.check_plural(duration)}.")
                 await asyncio.sleep(common.minutes_to_seconds(duration))
                 await self.unmute(ctx, memberNameID)
 
     @commands.command(name="ban")
     async def ban(self, ctx, memberNameID, reason=None):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
@@ -176,7 +191,10 @@ class Moderation(commands.Cog):
 
     @commands.command(name="unban")
     async def unban(self, ctx, memberNameID, reason=None):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
@@ -184,7 +202,10 @@ class Moderation(commands.Cog):
 
     @commands.command(name="tempban")
     async def tempban(self, ctx, memberNameID, duration=5, reason=None):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
@@ -192,13 +213,16 @@ class Moderation(commands.Cog):
                 await ctx.send(f"Ban duration of {duration} is not possible.")
             else:
                 await self.ban(ctx, memberNameID)
-                await ctx.send(f"{member.name} has been banned for {duration} minute{'s' if duration > 1 else ''}.")
+                await ctx.send(f"{member.name} has been banned for {duration} minute{common.check_plural(duration)}.")
                 await asyncio.sleep(common.minutes_to_seconds(duration))
                 await self.unban(ctx, memberNameID)
 
     @commands.command(name="kick")
     async def kick(self, ctx, memberNameID, reason=None):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        if not ctx:
+            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+        else:
+            member = common.get_member(self.bot, memberNameID)
         if not member:
             await ctx.send(f"{memberNameID} not found!")
         elif member != 2:
