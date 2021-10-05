@@ -10,7 +10,7 @@ from discord.ext import commands
 from datetime import datetime
 
 
-async def get_reaction_welcome_message(bot, member):
+async def get_reaction_welcome_message(bot, member):  # checks the member's reaction
     welcome_channel = await bot.fetch_channel(common.welcome_channel_id)
     welcome_message = await welcome_channel.fetch_message(common.welcome_message_id)
     reactions_list = welcome_message.reactions
@@ -27,6 +27,7 @@ async def get_reaction_welcome_message(bot, member):
     elif member.id in check_users:
         return 1
     return 2
+    # x, check, not reacted = 0, 1, 2
 
 
 async def database_insert(memberID, memberUsername, timestampJoined, timestampLastMessage, rulesReaction,

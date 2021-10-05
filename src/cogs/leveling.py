@@ -283,7 +283,7 @@ class Leveling(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if not member.bot and member.guild.id == common.oasis_guild_id:
+        if not member.bot and (member.guild.id == common.oasis_guild_id):
             before_mute = not nor(before.mute, before.self_mute)
             before_deaf = not nor(before.deaf, before.self_deaf)
             after_mute = not nor(after.mute, after.self_mute)
@@ -323,6 +323,8 @@ class Leveling(commands.Cog):
         for memberID in addXPMemberID:
             member = common.get_member(self.bot, memberID)
             await ctx.send(f"{member.name} is active")
+        if not len(addXPMemberID):
+            await ctx.send(f"No member is active")
 
     @commands.command(name="spawn_leaderboard", aliases=["sl"])
     async def spawn_leaderboard(self, ctx):
@@ -332,10 +334,6 @@ class Leveling(commands.Cog):
         common.database.update([('', ''), ("leaderboardMessageID", message.id)], dbTable="memory")
         for control in common.leaderboard_controls:
             await message.add_reaction(control)
-
-    @commands.command(name="test", aliases=['t'])
-    async def test(self, ctx):
-        pass
 
 
 def setup(bot):

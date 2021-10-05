@@ -12,8 +12,12 @@ class Features(commands.Cog):
         self.bot = bot
 
     @commands.command(name="roll", aliases=['r'])
-    async def roll(self, ctx, rollRange=3):
-        await ctx.send(f"{randint(1, rollRange)}")
+    async def roll(self, ctx, rollRange=2):
+        if rollRange == 2:
+            rollDict = {True: "Yes", False: "No"}
+            await ctx.send(f"{rollDict[bool(randint(0, rollRange - 1))]}")
+        else:
+            await ctx.send(f"{randint(1, rollRange)}")
 
     # noinspection PyTypeChecker
     @commands.command(name="grow_castle", aliases=["gc"])

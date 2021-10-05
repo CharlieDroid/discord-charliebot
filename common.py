@@ -9,6 +9,7 @@ kou_id = 498374117561597972
 owner_id = 799843363058221076
 the_council_id = [owner_id, blue_bird_id, kou_id]
 oasis_guild_id = 811395891122012180
+skewl_guild_id = 498402270472306689
 welcome_channel_id = 811395892338622504
 general_channel_id = 811395892338622507  # the council id for now to test
 achievements_channel_id = 881400374085443614
