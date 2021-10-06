@@ -1,8 +1,7 @@
 """
 Unimplemented:
--Cannot play wild cards anytime
--Play the color chosen for a wild card
--Reset deck if draw pile is empty
+Put messages for return -1
+draw card needs better logic
 """
 
 import random as rand
@@ -62,10 +61,6 @@ class Card:
         self.color = color
         # must be in 0, 1, +2, w, +4, ...
         self.value = value
-        # full name is rd0, yw1, ...
-        self.fullName = color + value
-        # readable name is red zero, yellow one
-        self.readableName = colors[color] + ' ' + values[value]
 
     def __repr__(self):
         return f"{colors[self.color]} {values[self.value]}"
@@ -80,6 +75,9 @@ class DrawPile:
         colorList = list(colors.keys())[:4]
         black = list(colors.keys())[-1]
         valuesList = list(values.keys())
+        numberValues = valuesList[1:10]
+        actionCards = valuesList[10:13]
+        wildCards = valuesList[-2:]
 
         # initialize zero cards
         for color in colorList:
@@ -88,18 +86,18 @@ class DrawPile:
         # initialize number cards
         for i in range(2):
             for color in colorList:
-                for value in valuesList[1:10]:
+                for value in numberValues:
                     self.deck.append(Card(color, value))
 
-        # initialize action cards that are non-black
+        # initialize action cards that are colored
         for i in range(2):
             for color in colorList:
-                for value in valuesList[10:13]:
+                for value in actionCards:
                     self.deck.append(Card(color, value))
 
         # initialize wild cards
         for i in range(4):
-            for value in valuesList[-2:]:
+            for value in wildCards:
                 self.deck.append(Card(black, value))
 
     def shuffle(self, seed):
@@ -121,17 +119,17 @@ class DrawPile:
 class DiscardPile:
     def __init__(self):
         self.deck = []
-        self.topCard = None
 
     def top_card(self):
-        self.topCard = self.deck[-1]
-        return self.topCard
+        return self.deck[-1]
 
     def add_card(self, card):
         self.deck.append(card)
 
     def reset(self):
-        self.__init__()
+        topCard = self.top_card()
+        self.deck = []
+        self.deck.append(topCard)
 
 
 class Player:
@@ -139,20 +137,13 @@ class Player:
         self.name = name
         self.hand = hand
         self.points = 0
-        self.unoCallOut = False
-
-    # for __repr__ for readability when printing
-    def get_readable_hand(self):
-        return [card.readableName for card in self.hand]
+        self.saidUno = False
 
     def get_card(self, card):
-        # find index of card and get the element from the list of cards
-        try:
-            card = self.hand[index_card(self.hand, card)]
-            self.hand.remove(card)
-            return card
-        except (TypeError, AttributeError):
-            return -1
+        i, card = find_card(self.hand, card)
+        if card:
+            self.hand.pop(i)
+        return card
 
     def add_card(self, card):
         self.hand.append(card)
@@ -167,13 +158,13 @@ class Player:
         self.__init__(name, hand)
 
     def __repr__(self):
-        return f"{self.name}: {', '.join(self.get_readable_hand())}"
+        return f"{self.name}: {', '.join([f'{colors[c.color]} {values[c.value]}' for c in self.hand])}"
 
 
-def index_card(listCards, card):
-    for i in range(len(listCards)):
-        if listCards[i].fullName == card.fullName:
-            return i
+def find_card(deck, card):
+    for i, deckCard in enumerate(deck):
+        if (deckCard.color == card.color) and (deckCard.value == card.value):
+            return i, card
     return None
 
 
@@ -200,66 +191,147 @@ def text_to_card(cardList):
 
 
 class UnoGame:
-    def __init__(self, playerNames, seed, resetGame=True):
+    def __init__(self, playerNames, seed):
+        check_players(playerNames)
+        self.playerNames = playerNames
+        self.seed = seed
+        self.playersList = self.playerNames
+        self.players = []
+        self.numPlayers = len(playerNames)
+        self.startingNumberOfCards = 7
+        self.winningPoints = 500
+
+        self.drawPile = DrawPile()
+        self.discardPile = DiscardPile()
         self.toSkip = False  # for skip
-        self.clockwise = True  # for reverse card
-        self.winner = False
-        self.previousTwoPlayerIndex = None
-        self.previousPlayerIndex = None
         self.currentPlayerIndex = -1
-        if resetGame:
-            self.playerNames = playerNames
-            self.finalWinner = False
-            self.drawPile = DrawPile()
-            self.discardPile = DiscardPile()
-            self.startingNumberOfCards = 7
-            check_players(playerNames)
-            self.playersList = playerNames
-            self.seed = seed
-            self.players = []
-            self.numPlayers = len(playerNames)
+        self.previousPlayerIndex = None
+        self.previousTwoPlayerIndex = None
+        self.winner = None
+        self.finalWinner = None
+
+    def start_game(self):
+        # if there are no pre-existing players then create the players
+        # seed is used to ensure a different deck is shuffled everytime
+        if not self.players:
+            # players are initialized
+            for player in self.playersList:
+                # seven cards are dealt to each player
+                playerHand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
+                self.players.append(Player(player, playerHand))
+        else:
+            # shuffle original seed
+            rand.shuffle(self.seed)
+            rand.seed(self.seed)
+
+            # shuffle players
+            rand.shuffle(self.players)
+            # new cards are being dealt to players
+            for player in self.players:
+                player.hand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
+
+        # gives the players the feel of shuffling the deck
+        self.drawPile.shuffle(self.seed)
+
+        # a card is picked from the draw pile and is played to first player
+        self.play(self.drawPile.get_card())
+        self.update_next_turn()
+
+    def turn(self, playerInput):
+        playerInput = playerInput.lower()
+        currentPlayer = self.players[self.currentPlayerIndex]
+        if playerInput == "challenge":
+            # -1 if unsuccessful and None if correct
+            return self.challenge()
+
+        if playerInput == "draw card":
+            self.draw(currentPlayer, 1)
+            drawnCard = currentPlayer.hand[-1]
+            # if drawn card is playable then let the player choose to play it or not
+            if self.check_play(drawnCard):
+                card = currentPlayer.get_card(drawnCard)
+                self.play(card)
+                # if input(f"Play {card}? ").lower() == "yes":
+                #     self.play(card)
+            self.update_next_turn()
+        else:
+            inputList = playerInput.split()
+            card = text_to_card(inputList[:2])
+            if self.check_play(card):
+                card = currentPlayer.get_card(card)
+
+                def uno_check(currentPlayer):
+                    if len(currentPlayer.hand) == 1:
+                        currentPlayer.saidUno = True
+                    else:
+                        return -1
+
+                colorChosen = None
+                if len(inputList) == 4:
+                    colorChosen = inputList[2]
+                    if uno_check(currentPlayer) == -1:
+                        return -1
+                elif len(inputList) == 3:
+                    if inputList[2] == "uno":
+                        if uno_check(currentPlayer) == -1:
+                            return -1
+                    else:
+                        colorChosen = inputList[2]
+                self.play(card, colorChosen=colorChosen)
+                self.update_next_turn()
+        return -1
 
     def reverse(self):
         if self.numPlayers > 2:
-            self.clockwise = not self.clockwise
+            self.players = self.players[::-1]
         else:
             self.skip()
 
     def skip(self):
-        # skip one turn
+        # checks for this in update next turn
         self.toSkip = True
 
     def draw(self, player, numberOfCards, challenge=False):
+        self.check_deck(numberOfCards)
         for i in range(numberOfCards):
             player.add_card(self.drawPile.get_card())
+        if player.saidUno and len(player.hand) > 1:
+            player.saidUno = not player.saidUno
         if numberOfCards > 1 and not challenge:
             self.skip()
 
     def challenge(self):
         previousPlayer = self.players[self.previousPlayerIndex]
-        if not previousPlayer.unoCallOut:
-            previousPlayer.unoCallOut = True
-            return self.draw(previousPlayer, 2)
-        return -1
+        if not previousPlayer.saidUno:
+            previousPlayer.saidUno = True
+            self.draw(previousPlayer, 2, challenge=True)
+        else:
+            return -1
+
+    def check_deck(self, numberOfCards):
+        # if draw pile is empty(negative) then use discard pile as the new draw pile
+        if (len(self.drawPile.deck) - numberOfCards) < 0:
+            seedList = list(self.seed)
+            rand.shuffle(seedList)
+            self.seed = ''.join(seedList)
+            self.drawPile.deck = self.discardPile.deck[:-1]
+            self.discardPile.reset()
+            self.drawPile.shuffle(self.seed)
 
     def check_play(self, cardPlayed):
         topCard = self.discardPile.top_card()
-        # if top card black or card played black then any color
-        if topCard.color != "bk" or cardPlayed.color != "bk":
+        # if top card black or card played black then its okay
+        # this is done because in "or" logic the first argument is always checked and if it is true it proceeds
+        if topCard.color == 'bk' or cardPlayed.color == 'bk':
+            return True
+        else:
             return topCard.color == cardPlayed.color or topCard.value == cardPlayed.value
-        return True
 
     def get_next_player(self):
         currentPlayerIndex = self.currentPlayerIndex
-        if self.clockwise:
-            currentPlayerIndex += 1
-        else:
-            currentPlayerIndex -= 1
-
-        if currentPlayerIndex >= self.numPlayers:
+        currentPlayerIndex += 1
+        if currentPlayerIndex == self.numPlayers:
             currentPlayerIndex = 0
-        elif currentPlayerIndex < 0:
-            currentPlayerIndex = self.numPlayers - 1
         return currentPlayerIndex
 
     def play(self, cardPlayed, colorChosen=None):
@@ -288,10 +360,10 @@ class UnoGame:
                     points += self.players[i].get_hand_points()
             winnerPlayer.points += points
             # if winner has greater than 500 points then he has won the game and game stops
-            if winnerPlayer.points >= 500:
-                self.finalWinner = True
-                return winnerPlayer
-            self.winner = winnerPlayer
+            if winnerPlayer.points >= self.winningPoints:
+                self.finalWinner = winnerPlayer
+            else:
+                self.winner = winnerPlayer
 
     def update_next_turn(self):
         self.previousTwoPlayerIndex = self.previousPlayerIndex
@@ -299,99 +371,18 @@ class UnoGame:
         self.currentPlayerIndex = self.get_next_player()
         # if two players ago is in uno but did not callout it will be set to true
         if self.previousTwoPlayerIndex and (len(self.players[self.previousTwoPlayerIndex].hand) == 1):
-            self.players[self.previousTwoPlayerIndex].unoCallOut = True
+            self.players[self.previousTwoPlayerIndex].saidUno = True
         # if skip then update again
         if self.toSkip:
             self.toSkip = False
             self.update_next_turn()
 
-    def input_parser(self, playerInput):
-        # returns the drawn card, if challenge was not successful then -1, or playerInput
-        playerInput = playerInput.lower()
-        currentPlayer = self.players[self.currentPlayerIndex]
-        if playerInput == "draw card":
-            self.draw(currentPlayer, 1)
-            return ['dc', currentPlayer.hand[-1]]
-        elif playerInput == "challenge":
-            return ['ch', self.challenge()]
-        else:
-            # turn player input in to a list
-            playerInputList = playerInput.split()
-            try:
-                if playerInputList[2] == "uno" and len(currentPlayer.hand) == 2:
-                    currentPlayer.unoCallOut = True
-                else:
-                    return -1
-            except IndexError:
-                pass
-            return ['pc', currentPlayer.get_card(text_to_card(playerInputList[:2]))]
 
-    def start_game(self):
-        # if there are no preexisting players then create the players
-        if not self.players:
-            # seed is used to ensure a different deck is shuffled everytime
-            # it also gives the players the feel of shuffling the deck
-            self.drawPile.shuffle(self.seed)
-            # players are initialized
-            for player in self.playersList:
-                # seven cards are dealt to each player
-                playerHand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
-                self.players.append(Player(player, playerHand))
-        else:
-            # shuffle original seed
-            rand.shuffle(self.seed)
-            rand.seed(self.seed)
-
-            # shuffle deck and/or player orders
-            self.drawPile.shuffle(self.seed)
-            # rand.shuffle(self.players)
-            # new cards are being dealt to players
-            for player in self.players:
-                player.hand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
-
-        # a card is picked from the draw pile and is played to first player
-        self.play(self.drawPile.get_card(), "bk")
-        self.update_next_turn()
-
-    def turn(self, playerInput):
-        parsedInput = self.input_parser(playerInput)
-        # ['dc', drawnCard], ['ch', -1(not successful) or None(successful)], ['pc', play card]
-        if parsedInput[0] == 'ch':
-            if not parsedInput:
-                return "Challenge Successful"
-            return "Challenge Unsuccessful"
-
-        elif parsedInput[0] == 'dc':
-            # if drawn card is playable then let the player choose to play it or not
-            if self.check_play(parsedInput[1]):
-                currentPlayer = self.players[self.currentPlayerIndex]
-                card = currentPlayer.get_card(currentPlayer.hand[-1])
-                if input(f"Play {card}? ").lower() == "yes":
-                    self.play(card)
-            self.update_next_turn()
-
-        elif parsedInput[0] == 'pc' and parsedInput[1] != -1:
-            card = parsedInput[1]
-            if self.check_play(card):
-                self.play(card)
-                self.update_next_turn()
-
-        # -1 is returned if something is wrong
-        return -1
-
-    def reset(self, resetAll=False):
-        if resetAll:
-            self.__init__(self.playerNames, self.seed, resetGame=True)
-        else:
-            self.drawPile.reset()
-            self.discardPile.reset()
-            self.__init__(self.playerNames, self.seed, resetGame=False)
-
-
-uno = UnoGame(["Danica", "Charles", "Xavier", "Julian"], "1234")
+uno = UnoGame(["Danica", "Charles", "Xavier", "Julian"], "12345")
 # danica_win_turns = ['yw 9', 'gn 9', 'gn 1', 'draw card', 'gn 3', 'be 3', 'be s', 'be s', 'draw card',
 #                     'be 5', 'draw card', 'yw 5', 'yw r', 'rd r', 'rd +2', 'rd +2']
 uno.start_game()
+
 # for turn in danica_win_turns:
 #     uno.turn(turn)
 print(f"Discard Pile: {uno.discardPile.top_card()}")
@@ -402,4 +393,4 @@ while not uno.winner:
     print('=' * 119)
     print(f"Discard Pile: {uno.discardPile.top_card()}")
 
-print(uno.winner.points)
+print(uno.winner)
