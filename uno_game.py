@@ -1,7 +1,6 @@
 """
 Unimplemented:
-Put messages for return -1
-draw card needs better logic
+Input testing
 """
 
 import random as rand
@@ -187,7 +186,7 @@ def text_to_card(cardList):
         return Card(color, value)
     except KeyError:
         # if wrong card return 1
-        return -1
+        return f"No such card as {' '.join(cardList)}"
 
 
 class UnoGame:
@@ -209,8 +208,12 @@ class UnoGame:
         self.previousTwoPlayerIndex = None
         self.winner = None
         self.finalWinner = None
+        self.drawnCard = None
 
     def start_game(self):
+        # gives the players the feel of shuffling the deck
+        self.drawPile.shuffle(self.seed)
+
         # if there are no pre-existing players then create the players
         # seed is used to ensure a different deck is shuffled everytime
         if not self.players:
@@ -230,32 +233,41 @@ class UnoGame:
             for player in self.players:
                 player.hand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
 
-        # gives the players the feel of shuffling the deck
-        self.drawPile.shuffle(self.seed)
-
         # a card is picked from the draw pile and is played to first player
         self.play(self.drawPile.get_card())
-        self.update_next_turn()
+        self.update_turn()
 
     def turn(self, playerInput):
-        playerInput = playerInput.lower()
+        playerInput = playerInput.lower().split()
         currentPlayer = self.players[self.currentPlayerIndex]
         if playerInput == "challenge":
             # -1 if unsuccessful and None if correct
             return self.challenge()
-
-        if playerInput == "draw card":
+        if playerInput[0] in ["yes", "no"] and self.drawnCard:
+            # create new if else to parse for yes and no
+            if playerInput[0] == "yes":
+                colorChosen = None
+                if self.drawnCard.color == 'bk' and len(playerInput) > 1:
+                    colorChosen = playerInput[1]
+                else:
+                    return f"Color was not specified"
+                card = currentPlayer.get_card(self.drawnCard)
+                self.drawnCard = None
+                self.play(card, colorChosen)
+            elif playerInput[0] == "no":
+                self.drawnCard = None
+            self.update_turn()
+        elif playerInput == ["draw", "card"]:
+            # yes and no also pulls a new card
             self.draw(currentPlayer, 1)
             drawnCard = currentPlayer.hand[-1]
             # if drawn card is playable then let the player choose to play it or not
             if self.check_play(drawnCard):
-                card = currentPlayer.get_card(drawnCard)
-                self.play(card)
-                # if input(f"Play {card}? ").lower() == "yes":
-                #     self.play(card)
-            self.update_next_turn()
-        else:
-            inputList = playerInput.split()
+                self.drawnCard = drawnCard
+                return f"card playable"
+            self.update_turn()
+        elif playerInput[0] == "play":
+            inputList = playerInput[1:]
             card = text_to_card(inputList[:2])
             if self.check_play(card):
                 card = currentPlayer.get_card(card)
@@ -263,23 +275,27 @@ class UnoGame:
                 def uno_check(currentPlayer):
                     if len(currentPlayer.hand) == 1:
                         currentPlayer.saidUno = True
+                        return True
                     else:
-                        return -1
+                        return f"{currentPlayer.name} has more than one card."
 
                 colorChosen = None
                 if len(inputList) == 4:
                     colorChosen = inputList[2]
-                    if uno_check(currentPlayer) == -1:
-                        return -1
+                    unoCheck = uno_check(currentPlayer)
+                    if unoCheck is not True:
+                        return unoCheck
                 elif len(inputList) == 3:
                     if inputList[2] == "uno":
-                        if uno_check(currentPlayer) == -1:
-                            return -1
+                        unoCheck = uno_check(currentPlayer)
+                        if unoCheck is not True:
+                            return unoCheck
                     else:
                         colorChosen = inputList[2]
                 self.play(card, colorChosen=colorChosen)
-                self.update_next_turn()
-        return -1
+                self.update_turn()
+        else:
+            return f"{playerInput} is an invalid input."
 
     def reverse(self):
         if self.numPlayers > 2:
@@ -302,11 +318,17 @@ class UnoGame:
 
     def challenge(self):
         previousPlayer = self.players[self.previousPlayerIndex]
-        if not previousPlayer.saidUno:
+        if not previousPlayer.saidUno and len(previousPlayer.hand) == 1:
             previousPlayer.saidUno = True
             self.draw(previousPlayer, 2, challenge=True)
+
+            def ownership(name):
+                return 's' if name[-1].lower() == 's' else ''
+
+            return f"{previousPlayer.name}'{ownership(previousPlayer.name)} hand got added 2 cards penalty" \
+                   f" for not calling uno."
         else:
-            return -1
+            return f"Challenge unsuccessful"
 
     def check_deck(self, numberOfCards):
         # if draw pile is empty(negative) then use discard pile as the new draw pile
@@ -365,7 +387,7 @@ class UnoGame:
             else:
                 self.winner = winnerPlayer
 
-    def update_next_turn(self):
+    def update_turn(self):
         self.previousTwoPlayerIndex = self.previousPlayerIndex
         self.previousPlayerIndex = self.currentPlayerIndex
         self.currentPlayerIndex = self.get_next_player()
@@ -375,21 +397,32 @@ class UnoGame:
         # if skip then update again
         if self.toSkip:
             self.toSkip = False
-            self.update_next_turn()
+            self.update_turn()
 
 
-uno = UnoGame(["Danica", "Charles", "Xavier", "Julian"], "12345")
+uno = UnoGame(["Danica", "Charles", "Xavier", "Julian"], "1234")
 # danica_win_turns = ['yw 9', 'gn 9', 'gn 1', 'draw card', 'gn 3', 'be 3', 'be s', 'be s', 'draw card',
 #                     'be 5', 'draw card', 'yw 5', 'yw r', 'rd r', 'rd +2', 'rd +2']
 uno.start_game()
 
 # for turn in danica_win_turns:
 #     uno.turn(turn)
+turn = None
+while uno.drawnCard is None:
+    turn = uno.turn("draw card")
+    try:
+        if turn.lower()[:3] == "play":
+            break
+    except AttributeError:
+        pass
+print(f"{uno.drawnCard} {turn}")
 print(f"Discard Pile: {uno.discardPile.top_card()}")
 while not uno.winner:
     print(uno.players[uno.currentPlayerIndex])
     turn = input("Turn: ")
-    uno.turn(turn)
+    turn = uno.turn(turn)
+    if turn is not None:
+        print(turn)
     print('=' * 119)
     print(f"Discard Pile: {uno.discardPile.top_card()}")
 
