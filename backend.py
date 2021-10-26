@@ -13,8 +13,8 @@ class DiscordDatabase:
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE IF NOT EXISTS members ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
-                            "memberUsername TEXT NOT NULL,"
-                            "memberName TEXT NOT NULL,"
+                            "memberUsername TEXT NOT NULL DEFAULT '',"
+                            "memberName TEXT NOT NULL DEFAULT '',"
                             "timestampJoined REAL NOT NULL DEFAULT 0,"
                             "timestampLastMessage REAL NOT NULL DEFAULT 0,"
                             "rulesReaction INTEGER NOT NULL DEFAULT 0,"
@@ -26,7 +26,7 @@ class DiscordDatabase:
                             ")")
         self.cursor.execute("CREATE TABLE IF NOT EXISTS leveling ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
-                            "memberUsername TEXT NOT NULL,"
+                            "memberUsername TEXT NOT NULL DEFAULT '',"
                             "level INTEGER NOT NULL DEFAULT 0,"
                             "experience REAL NOT NULL DEFAULT 0,"
                             "previousExperience REAL NOT NULL DEFAULT 0,"
@@ -38,6 +38,8 @@ class DiscordDatabase:
                             "passiveHours REAL NOT NULL DEFAULT 0"
                             ")")
         self.cursor.execute("CREATE TABLE IF NOT EXISTS memory ("
+                            "guildID INTEGER PRIMARY KEY UNIQUE,"
+                            "guildName TEXT NOT NULL DEFAULT '',"
                             "leaderboardMessageID INTEGER NOT NULL DEFAULT 0"
                             ")")
         # memberID, memberUsername, memberName, timestampJoined,

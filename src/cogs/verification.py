@@ -10,26 +10,6 @@ from discord.ext import commands
 from datetime import datetime
 
 
-async def get_reaction_welcome_message(bot, member):  # checks the member's reaction
-    welcome_channel = await bot.fetch_channel(common.welcome_channel_id)
-    welcome_message = await welcome_channel.fetch_message(common.welcome_message_id)
-    reactions_list = welcome_message.reactions
-
-    def get_index_emoji(reactions_list, reaction):
-        return [r.emoji for r in reactions_list].index(reaction)
-
-    check_reaction = reactions_list[get_index_emoji(reactions_list, common.check_emoji)]
-    x_reaction = reactions_list[get_index_emoji(reactions_list, common.x_emoji)]
-    check_users = [m.id for m in await check_reaction.users().flatten()]
-    x_users = [m.id for m in await x_reaction.users().flatten()]
-    if member.id in x_users:
-        return 0
-    elif member.id in check_users:
-        return 1
-    return 2
-    # x, check, not reacted = 0, 1, 2
-
-
 async def database_insert(memberID, memberUsername, timestampJoined, timestampLastMessage, rulesReaction,
                           memberName="N/A", numViolations=0, timestampLastViolation=0, lastMessage=None,
                           inServer=True, counter=0):
@@ -49,7 +29,6 @@ async def database_insert(memberID, memberUsername, timestampJoined, timestampLa
 class Verification(commands.Cog):
 
     def __init__(self, bot):
-        self.numPasses = 0
         self.bot = bot
 
     @commands.Cog.listener()
@@ -57,18 +36,14 @@ class Verification(commands.Cog):
         if not member.bot:
             timestamp_now = common.timestamp_convert(datetime.now())
             await member.send(common.welcome_message(member))
-            if self.numPasses == 0:
-                await member.add_roles(discord.Object(common.unknown_role_id), reason="Just joined")
-            elif self.numPasses > 0:
-                self.numPasses -= 1
-                await member.add_roles(discord.Object(common.member_role_id), reason="Just joined")
-            memberUsername = common.database.get([("memberID", member.id), ("memberUsername", '')])
-            if not memberUsername:
+            await member.add_roles(discord.Object(common.unknown_role_id), reason="Just joined")
+            memberID = common.database.get([("memberID", member.id), ("1", '')])
+            if not memberID:
                 await database_insert(memberID=member.id,
                                       memberUsername=member.name,
                                       timestampJoined=timestamp_now,
                                       timestampLastMessage=timestamp_now,
-                                      rulesReaction=await get_reaction_welcome_message(self.bot, member))
+                                      rulesReaction=await self.get_reaction_welcome_message(member))
             else:
                 common.database.update([("memberID", member.id), ("timestampJoined", timestamp_now)])
                 common.database.update([("memberID", member.id), ("timestampLastUpdate", timestamp_now)],
@@ -90,35 +65,41 @@ class Verification(commands.Cog):
                                       memberUsername=member.name,
                                       timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
                                       timestampLastMessage=common.timestamp_convert(datetime.now()),
-                                      rulesReaction=await get_reaction_welcome_message(self.bot, member))
+                                      rulesReaction=await self.get_reaction_welcome_message(member))
             else:
                 await ctx.send(f"{memberNameID} not found!")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         if payload.message_id == common.welcome_message_id:
-            reaction = await get_reaction_welcome_message(self.bot, payload.member)
-            if not reaction:
-                await payload.member.send(f"You have not agreed with the rules.")
-                for role in common.all_roles:
-                    await payload.member.remove_roles(discord.Object(role), reason="Did not agree with rules")
-                await payload.member.add_roles(discord.Object(common.unknown_role_id),
-                                               reason="Did not agree with rules")
-            elif reaction == 1:
+            reaction = await self.get_reaction_welcome_message(payload.member)
+            if reaction:
                 await payload.member.send(f"Welcome:confetti_ball:, you have agreed with the rules.")
-                await payload.member.remove_roles(discord.Object(common.unknown_role_id),
-                                                  reason="Agreed with rules")
+                await payload.member.remove_roles(discord.Object(common.unknown_role_id), reason="Agreed with rules")
                 await payload.member.add_roles(discord.Object(common.member_role_id), reason="Agreed with rules")
-
             common.database.update([["memberID", payload.member.id], ["rulesReaction", reaction]])
 
     @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+        if payload.message_id == common.welcome_message_id:
+            member = common.get_member(self.bot, payload.user_id)
+            reaction = await self.get_reaction_welcome_message(member)
+            if not reaction:
+                await member.send(f"You have not agreed with the rules. Your roles are removed.:face_with_monocle:")
+                for role in common.all_roles:
+                    await member.remove_roles(discord.Object(role), reason="Did not agree with rules")
+                await member.add_roles(discord.Object(common.unknown_role_id), reason="Did not agree with rules")
+            common.database.update([["memberID", member.id], ["rulesReaction", reaction]])
+
+    @commands.Cog.listener()
     async def on_ready(self):
-        memberID_list = common.database.get([['', ''], ['memberID', '']])
+        memberID_list = common.database.get([('', ''), ('memberID', '')])
         for member_tuple in memberID_list:
             memberID = member_tuple[0]
-            member = common.get_member(self.bot, memberID)
-            common.database.update([['memberID', memberID], ['memberUsername', member.name]])
+            inServer = common.database.get([("memberID", memberID), ("inServer", '')])[0][0]
+            if inServer:
+                member = common.get_member(self.bot, memberID)
+                common.database.update([['memberID', memberID], ['memberUsername', member.name]])
 
     @commands.command(name='add_database', aliases=['ad'])
     async def add_to_database(self, ctx, *message):
@@ -133,14 +114,20 @@ class Verification(commands.Cog):
                                        memberName=name,
                                        timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
                                        timestampLastMessage=common.timestamp_convert(datetime.now()),
-                                       rulesReaction=await get_reaction_welcome_message(self.bot, member))
+                                       rulesReaction=await self.get_reaction_welcome_message(member))
                 await ctx.send(f"{name} added to database!")
             else:
                 await ctx.send(f"{message[0]} not found!")
 
-    @commands.command(name="you_shall_pass")
-    async def you_shall_pass(self, ctx, numPasses=1):
-        self.numPasses = int(numPasses)
+    async def get_reaction_welcome_message(self, member):  # checks the member's reaction
+        welcome_channel = await self.bot.fetch_channel(common.welcome_channel_id)
+        welcome_message = await welcome_channel.fetch_message(common.welcome_message_id)
+        reactions_list = welcome_message.reactions
+        check_index = [r.emoji for r in reactions_list].index(common.check_emoji)
+        check_reaction = reactions_list[check_index]
+        check_users = [m.id for m in await check_reaction.users().flatten()]
+        return member.id in check_users
+        # check or not check
 
 
 def setup(bot):

@@ -1,7 +1,3 @@
-"""
-Member leaving protection
-Verification change to check mark only
-"""
 import sys
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")

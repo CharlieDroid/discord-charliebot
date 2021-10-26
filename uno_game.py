@@ -1,6 +1,12 @@
 """
-Unimplemented:
-Input testing
+inputs:
+play <color> <value> |color|
+challenge
+draw card
+^^ if playable ^^
+yes
+no
+yes |color|
 """
 
 import random as rand

@@ -2,7 +2,6 @@ from backend import DiscordDatabase
 from datetime import datetime
 
 check_emoji = '✅'
-x_emoji = '❌'
 bot_id = 815105045842493442
 blue_bird_id = 622655798794911760
 kou_id = 498374117561597972
@@ -24,7 +23,7 @@ member_role_id = 814154234433634316
 dj_role_id = 815442370132049931
 muted_role_id = 876417233247666187
 unknown_role_id = 814155609158713414
-all_roles = [admin_role_id, based_zeus_role_id, mod_role_id, dj_role_id, member_role_id]
+all_roles = [member_role_id, mod_role_id, admin_role_id, based_zeus_role_id, dj_role_id]
 
 temporary_duration = 3
 counter_count = 6

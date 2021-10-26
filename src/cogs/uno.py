@@ -9,18 +9,11 @@ import common
 import uno_game
 
 
-def find_player(players, player):
-    for i, playerList in enumerate(players):
-        if playerList.id == player.id:
-            return i, player
-    return None
-
-
-def check_ready(players):
-    for player in players:
-        if not player.unoReady:
-            return False
-    return True
+# def find_player(players, player):
+#     for i, playerList in enumerate(players):
+#         if playerList.id == player.id:
+#             return i, player
+#     return None
 
 
 def create_instructions():
@@ -35,6 +28,9 @@ def create_instructions():
 
 
 def create_embed(uno, i):
+    def rotation(uno):
+        return '>' if uno.clockwise else '<'
+
     def create_player_order(uno):
         playersText = ""
         for i, player in enumerate(uno.players):
@@ -43,7 +39,7 @@ def create_embed(uno, i):
             else:
                 playersText += f"**{player.name}**"
 
-            playersText += f" ({len(player.hand)}) > "
+            playersText += f" ({len(player.hand)} {rotation(uno)} "
         # delete the last " > "
         playersText = playersText[:-2]
         return playersText
@@ -66,11 +62,16 @@ def create_options(player, cardPlayable=None):
     else:
         if cardPlayable.color == 'bk':
             for color in list(uno_game.colors.values())[:-1]:
-                options.append(SelectOption(label=f"Yes {color.capitalize()}", value=f"yes {uno_game.colorsFlipped[color]}"))
+                options.append(
+                    SelectOption(label=f"Yes {color.capitalize()}", value=f"yes {uno_game.colorsFlipped[color]}"))
         else:
             options.append(SelectOption(label="Yes", value="yes"))
         options.append(SelectOption(label="No", value="no"))
     return options
+
+
+async def player_input():
+    pass
 
 
 class Uno(commands.Cog):
@@ -80,19 +81,24 @@ class Uno(commands.Cog):
         self.uno = None
         self.players = None
         self.unoStart = False
+        self.playerReady = 0
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if not message.author.bot and message.content[:3] == "uno":
             content = message.content.split()[1:]
-            if content[0] == "yes" and not self.unoStart:
+            if not self.unoStart and content[0] == "yes":
+                self.playerReady += 1
+                if self.playerReady == len(self.players):
+                    self.unoStart = True
+            else:
                 self.uno.start_game()
-                self.unoStart = True
-                # for player in self.players:
-                #     await player.send(embed=create_instructions())
+                for player in self.players:
+                    await player.send(embed=create_instructions())
                 for i, player in enumerate(self.players):
                     if i == self.uno.currentPlayerIndex:
-                        components = [Select(placeholder="It's your turn!!!", options=create_options(self.uno.players[i]))]
+                        components = [
+                            Select(placeholder="It's your turn!!!", options=create_options(self.uno.players[i]))]
                         await player.send(embed=create_embed(self.uno, i), components=components)
                     else:
                         await player.send(embed=create_embed(self.uno, i))
@@ -101,7 +107,8 @@ class Uno(commands.Cog):
                 if turn is None:
                     for i, player in enumerate(self.players):
                         if i == self.uno.currentPlayerIndex:
-                            components = [Select(placeholder="It's your turn!!!", options=create_options(self.uno.players[i]))]
+                            components = [
+                                Select(placeholder="It's your turn!!!", options=create_options(self.uno.players[i]))]
                             await player.send(embed=create_embed(self.uno, i), components=components)
                         else:
                             await player.send(embed=create_embed(self.uno, i))
@@ -131,37 +138,51 @@ class Uno(commands.Cog):
                         SelectOption(label="A", value="A"),
                         SelectOption(label="B", value="B")
                     ]
-                ), Button(label="WOW button!", custom_id="button1")
+                )
+                , Button(label="WOW button!", custom_id="button1")
             ]
         )
-        interaction = await self.bot.wait_for("select_option")
-        interaction = await self.bot.wait_for("button_click", check=lambda i: i.custom_id == "button1")
-        await interaction.send(content="Button clicked!")
-        await interaction.send(content=f"{interaction.values[0]} selected!")
+        done, pending = await asyncio.wait([
+            self.bot.wait_for("select_option"),
+            self.bot.wait_for("button_click", check=lambda i: i.custom_id == "button1")
+        ], return_when=asyncio.FIRST_COMPLETED)
+        print(type(list(done)[0].result))
+        # await buttonClicked.send(content="Button clicked!")
+        # await selection.send(content=f"{selection.values[0]} selected!")
+
+        # await ctx.send(
+        #     "Hello, World!",
+        #     components=[Select(placeholder="Select first choice",
+        #                        options=[SelectOption(label="A", value="A"),
+        #                                 SelectOption(label="B", value="B")]),
+        #                 Button(label="Choice 1", custom_id="choice1")])
+        # selectClick = await self.bot.wait_for("select_option")
+        # buttonClick = await self.bot.wait_for("button_click", check=lambda i: i.custom_id == "choice1")
+        # await buttonClick.send(content="Button clicked!")
+        # await selectClick.send(content=f"{selectClick.values[0]} selected!")
 
     @commands.command(name="uno", aliases=['u'])
     async def uno(self, ctx, players, seed):
         if ctx.author.id in common.the_council_id:
-            if players != "end":
-                self.players = [common.get_member(self.bot, memberID) for memberID in players.split()]
-                self.uno = uno_game.UnoGame([player.name for player in self.players], seed)
-                for player in self.players:
-                    await player.send("Are you ready?\nType `uno yes`")
-                await asyncio.sleep(common.minutes_to_seconds(1))
-                if not self.unoStart:
-                    self.uno = None
+            self.players = [common.get_member(self.bot, memberID) for memberID in players.split()]
+            self.uno = uno_game.UnoGame([player.name for player in self.players], seed)
+            for player in self.players:
+                await player.send("Are you ready?\nType `uno yes`, if you are.")
+            await asyncio.sleep(common.minutes_to_seconds(3))
+            if not self.unoStart:
+                self.uno = None
 
     @commands.command(name="uno_end", aliases=['ue'])
     async def uno_end(self, ctx):
-        if ctx.author.id in common.the_council_id:
+        if ctx.author.id == common.owner_id:
             self.__init__(self.bot)
 
-    @commands.command(name="test", aliases=['t'])
-    async def test(self, ctx):
-        for emoji in ctx.guild.emojis:
-            print(emoji.id)
-        emoji = self.bot.get_emoji(893523538173124640)
-        await ctx.message.add_reaction("<:Red_0:893523350805168138>")
+    # @commands.command(name="test", aliases=['t'])
+    # async def test(self, ctx):
+    #     for emoji in ctx.guild.emojis:
+    #         print(emoji.id)
+    #     emoji = self.bot.get_emoji(893523538173124640)
+    #     await ctx.message.add_reaction("<:Red_0:893523350805168138>")
 
 
 def setup(bot):
