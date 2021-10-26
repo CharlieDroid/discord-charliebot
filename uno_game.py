@@ -139,7 +139,10 @@ class Player:
         self.saidUno = False
 
     def get_card(self, card):
-        i, card = find_card(self.hand, card)
+        try:
+            i, card = find_card(self.hand, card)
+        except TypeError:
+            return f"{card} not found"
         if card:
             self.hand.pop(i)
         return card
@@ -202,6 +205,7 @@ class UnoGame:
 
         self.drawPile = DrawPile()
         self.discardPile = DiscardPile()
+        self.clockwise = True
         self.toSkip = False  # for skip
         self.currentPlayerIndex = -1
         self.previousPlayerIndex = None
@@ -240,7 +244,7 @@ class UnoGame:
     def turn(self, playerInput):
         playerInput = playerInput.lower().split()
         currentPlayer = self.players[self.currentPlayerIndex]
-        if playerInput == "challenge":
+        if playerInput[0] == "challenge":
             # -1 if unsuccessful and None if correct
             return self.challenge()
         if playerInput[0] in ["yes", "no"] and self.drawnCard:
@@ -271,6 +275,9 @@ class UnoGame:
             card = text_to_card(inputList[:2])
             if self.check_play(card):
                 card = currentPlayer.get_card(card)
+                if type(card) == str:
+                    if card[-9:] == "not found":
+                        return card
 
                 def uno_check(currentPlayer):
                     if len(currentPlayer.hand) == 1:
@@ -294,6 +301,8 @@ class UnoGame:
                         colorChosen = inputList[2]
                 self.play(card, colorChosen=colorChosen)
                 self.update_turn()
+            else:
+                return f"{card} not playable."
         else:
             return f"{playerInput} is an invalid input."
 
@@ -302,6 +311,7 @@ class UnoGame:
             self.players = self.players[::-1]
         else:
             self.skip()
+        self.clockwise = not self.clockwise
 
     def skip(self):
         # checks for this in update next turn
@@ -323,12 +333,10 @@ class UnoGame:
             self.draw(previousPlayer, 2, challenge=True)
 
             def ownership(name):
-                return 's' if name[-1].lower() == 's' else ''
+                return '' if name[-1].lower() == 's' else 's'
 
-            return f"{previousPlayer.name}'{ownership(previousPlayer.name)} hand got added 2 cards penalty" \
-                   f" for not calling uno."
-        else:
-            return f"Challenge unsuccessful"
+            return f"{previousPlayer.name} got added 2 cards penalty, for not calling uno."
+        return f"Challenge unsuccessful"
 
     def check_deck(self, numberOfCards):
         # if draw pile is empty(negative) then use discard pile as the new draw pile
@@ -391,39 +399,25 @@ class UnoGame:
         self.previousTwoPlayerIndex = self.previousPlayerIndex
         self.previousPlayerIndex = self.currentPlayerIndex
         self.currentPlayerIndex = self.get_next_player()
-        # if two players ago is in uno but did not callout it will be set to true
-        if self.previousTwoPlayerIndex and (len(self.players[self.previousTwoPlayerIndex].hand) == 1):
-            self.players[self.previousTwoPlayerIndex].saidUno = True
         # if skip then update again
         if self.toSkip:
             self.toSkip = False
-            self.update_turn()
+            self.currentPlayerIndex = self.get_next_player()
+        # if two players ago is in uno but did not callout it will be set to true
+        if self.previousTwoPlayerIndex and (len(self.players[self.previousTwoPlayerIndex].hand) == 1):
+            self.players[self.previousTwoPlayerIndex].saidUno = True
 
 
-uno = UnoGame(["Danica", "Charles", "Xavier", "Julian"], "1234")
-# danica_win_turns = ['yw 9', 'gn 9', 'gn 1', 'draw card', 'gn 3', 'be 3', 'be s', 'be s', 'draw card',
-#                     'be 5', 'draw card', 'yw 5', 'yw r', 'rd r', 'rd +2', 'rd +2']
-uno.start_game()
-
-# for turn in danica_win_turns:
-#     uno.turn(turn)
-turn = None
-while uno.drawnCard is None:
-    turn = uno.turn("draw card")
-    try:
-        if turn.lower()[:3] == "play":
-            break
-    except AttributeError:
-        pass
-print(f"{uno.drawnCard} {turn}")
-print(f"Discard Pile: {uno.discardPile.top_card()}")
-while not uno.winner:
-    print(uno.players[uno.currentPlayerIndex])
-    turn = input("Turn: ")
-    turn = uno.turn(turn)
-    if turn is not None:
-        print(turn)
-    print('=' * 119)
-    print(f"Discard Pile: {uno.discardPile.top_card()}")
-
-print(uno.winner)
+# uno = UnoGame(["Player1", "Player2"], "1234")
+# uno.start_game()
+# print(f"Discard Pile: {uno.discardPile.top_card()}")
+# while not uno.winner:
+#     print(uno.players[uno.currentPlayerIndex])
+#     turn = input("Turn: ")
+#     turn = uno.turn(turn)
+#     if turn is not None:
+#         print(turn)
+#     print('=' * 119)
+#     print(f"Discard Pile: {uno.discardPile.top_card()}")
+#
+# print(uno.winner)

@@ -38,6 +38,11 @@ class Features(commands.Cog):
         embed.set_footer(text="If you have extra gold use for main hero.")
         await ctx.send(embed=embed)
 
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, discord.errors.Forbidden):
+            await ctx.send(f"I am missing permissions.")
+
 
 def setup(bot):
     bot.add_cog(Features(bot))

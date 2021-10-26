@@ -1,3 +1,7 @@
+"""
+Member leaving protection
+Verification change to check mark only
+"""
 import sys
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
@@ -10,13 +14,8 @@ from random import choice
 from profanity_check import predict_prob
 from discord.ext import commands
 from datetime import datetime
+
 profanity.add_censor_words(common.bad_words)
-
-
-def check_author(bot, memberNameID, author_id, author_role_id):
-    if (author_id == common.bot_id) or (author_id in common.the_council_id) or (author_role_id == common.admin_role_id):
-        return common.get_member(bot, memberNameID)
-    return 2
 
 
 async def violation_warning(message, numViolations, messageType):
@@ -44,37 +43,48 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def check_author(self, memberNameID, author, ctx=None):
+        member = None
+        if (author.id in common.the_council_id + [common.bot_id]) or (author.top_role.id == common.admin_role_id):
+            member = common.get_member(self.bot, memberNameID)
+            if member is None:
+                if ctx is not None:
+                    await ctx.send(common.member_not_found(memberNameID))
+                return False
+        return member
+
     @commands.Cog.listener()
     async def on_message(self, message):
         try:
             if message.guild.id == common.oasis_guild_id and not message.author.bot and not message.channel.is_nsfw():
-                timestampLastMessage = common.database.get([("memberID", message.author.id), ("timestampLastMessage", "")])[0][0]
+                timestampLastMessage = \
+                    common.database.get([("memberID", message.author.id), ("timestampLastMessage", "")])[0][0]
                 totalTimeMessage = (datetime.now() - common.timestamp_convert(timestampLastMessage)).seconds
                 lastMessage = common.database.get([("memberID", message.author.id), ("lastMessage", "")])[0][0]
-                if (predict_prob([message.content]) > 0.7 or profanity.contains_profanity(message.content)) and message.channel.id != common.nsfw_channel_id:
+                # check profanity
+                if predict_prob([message.content])[0] > 0.7 or profanity.contains_profanity(message.content):
                     await self.add_violation(message)
-                elif (totalTimeMessage < 3) or (SequenceMatcher(None, message.content, lastMessage).quick_ratio() > 0.7):
+                # check if less than 2 seconds or same message as before
+                elif (totalTimeMessage < 2) or (SequenceMatcher(None, message.content, lastMessage).quick_ratio() > 0.7):
                     await self.add_counter(message)
+                # reset counter if it's over the temporary duration
                 elif totalTimeMessage > common.minutes_to_seconds(common.temporary_duration):
-                    common.database.update([("memberID", message.author.id),
-                                            ("counter", 0)])
+                    common.database.update([("memberID", message.author.id), ("counter", 0)])
+                # updates last message sent and timestamp of it
                 if not message.content.startswith(common.bot_prefixes):
                     common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
                     common.database.update([("memberID", message.author.id),
-                                            ("timestampLastMessage", common.timestamp_convert(datetime.now()))])
+                                            ("timestampLastMessage", common.snowflake_to_timestamp(message.id))])
         except (AttributeError, IndexError):
             pass
 
     async def add_violation(self, message, messageType=0):
         author_id = message.author.id
-        numViolations = common.database.get([("memberID", author_id),
-                                             ("numViolations", "")])[0][0]
-        timestampLastViolation = common.database.get([("memberID", author_id),
-                                                      ("timestampLastViolation", "")])[0][0]
-        numViolations += 1
+        numViolations = common.database.get([("memberID", author_id), ("numViolations", "")])[0][0] + 1
+        timestampLastViolation = common.database.get([("memberID", author_id), ("timestampLastViolation", "")])[0][0]
         common.database.update([("memberID", author_id), ("numViolations", numViolations)])
         common.database.update([("memberID", author_id),
-                                ("timestampLastViolation", common.timestamp_convert(datetime.now()))])
+                                ("timestampLastViolation", common.snowflake_to_timestamp(message.id))])
 
         datetimeLastViolation = common.timestamp_convert(timestampLastViolation)
         totalTimeViolation = (datetime.now() - datetimeLastViolation).seconds
@@ -86,159 +96,112 @@ class Moderation(commands.Cog):
         banTimeSeconds = common.minutes_to_seconds(common.ban_violation_time)
 
         ctx = await self.bot.get_context(message)
-        warn = True
+        # if violations more than 0 and
+        # if the last time violation till now is greater than 90 minutes then reset violations
         if (numViolations > 0) and (totalTimeViolation > banTimeSeconds):
-            warn = False
-            resetViolations = 0
-            common.database.update([("memberID", author_id), ("numViolations", resetViolations)])
-        if (muteViolationCount < numViolations < (muteViolationCount + 2)) and (totalTimeViolation < muteTimeSeconds):
-            warn = False
-            return await self.tempmute(ctx, author_id, reason="reached 3 warnings and got muted")
-        elif (kickViolationCount < numViolations < (kickViolationCount + 2)) and (totalTimeViolation < kickTimeSeconds):
-            warn = False
-            return await self.kick(ctx, author_id, reason="reached 8 warnings and got kicked")
-        elif (banViolationCount < numViolations < (banViolationCount + 2)) and (totalTimeViolation < banTimeSeconds):
-            warn = False
-            return await self.ban(ctx, author_id, reason="reached 11 warnings and got banned")
-        elif numViolations > (banViolationCount + 8):
+            common.database.update([("memberID", author_id), ("numViolations", 0)])
+
+        if (muteViolationCount <= numViolations <= muteViolationCount) and (totalTimeViolation < muteTimeSeconds):
+            return await self.tempmute(ctx, author_id, reason=common.violation_reason(muteViolationCount, "muted"))
+        elif (kickViolationCount <= numViolations <= kickViolationCount) and (totalTimeViolation < kickTimeSeconds):
+            return await self.kick(ctx, author_id, reason=common.violation_reason(kickViolationCount, "kicked"))
+        elif (banViolationCount <= numViolations <= banViolationCount) and (totalTimeViolation < banTimeSeconds):
+            return await self.tempban(ctx, author_id, reason=common.violation_reason(banViolationCount, "banned"))
+        elif numViolations > common.threshold_count:
             return await self.ban(ctx, author_id, reason="Too many violations")
-        if warn:
-            await violation_warning(message, numViolations, messageType)
+        await violation_warning(message, numViolations, messageType)
 
     async def add_counter(self, message):
-        counter = common.database.get([("memberID", message.author.id), ("counter", "")])[0][0]
-        counter += 1
+        counter = common.database.get([("memberID", message.author.id), ("counter", "")])[0][0] + 1
         common.database.update([("memberID", message.author.id), ("counter", counter)])
-        if counter > common.counter_count:
+        if counter >= common.counter_count:
             await self.add_violation(message, messageType=1)
-
-    @commands.command(name="warn")
-    async def warn(self, ctx, reason=None):
-        # second case warn user's message
-        reference_message = ctx.message.reference
-        if reference_message:
-            reference_channel = await self.bot.fetch_channel(reference_message.channel_id)
-            reference_message = await reference_channel.fetch_message(reference_message.message_id)
-            memberNameID = reference_message.author.id
-            reason = "saying bad words"
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-            if not member:
-                await ctx.send(f"{memberNameID} not found!")
-            elif member != 2:
-                await self.add_violation(reference_message)
-        else:
-            await ctx.send("Please reply to the message that did a violation")
 
     @commands.command(name="violations")
     async def violations(self, ctx, memberNameID):
         member = common.get_member(self.bot, memberNameID)
-        numViolations = common.database.get([("memberID", member.id),
-                                             ("numViolations", "")])[0][0]
+        numViolations = common.database.get([("memberID", member.id), ("numViolations", "")])[0][0]
         await ctx.send(f"{member.name} has {numViolations} violations.")
-
-    @commands.command(name="mute")
-    async def mute(self, ctx, memberNameID, reason="Violation/command from user"):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            await member.add_roles(discord.Object(common.muted_role_id), reason=reason)
-
-
-    @commands.command(name="unmute")
-    async def unmute(self, ctx, memberNameID, reason="Done serving his violation/command from user"):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            await member.remove_roles(discord.Object(common.muted_role_id),
-                                      reason=reason)
-            await ctx.send(f"{member.name} has been unmuted.")
 
     @commands.command(name="tempmute")
     async def tempmute(self, ctx, memberNameID, duration=5, reason=None):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            if type(duration) == str:
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            if not isinstance(duration, int):
                 await ctx.send(f"Mute duration of {duration} is not possible.")
             else:
                 await self.mute(ctx, memberNameID, reason)
-                await ctx.send(f"{member.name} has been muted for {duration} minute{common.check_plural(duration)}.")
+                await ctx.send(common.temp_message(member.name, duration, "muted"))
                 await asyncio.sleep(common.minutes_to_seconds(duration))
                 await self.unmute(ctx, memberNameID)
+                await ctx.send(f"{memberNameID} has been unmuted.")
+
+    @commands.command(name="tempban")
+    async def tempban(self, ctx, memberNameID, duration=5, reason=None):
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            if not isinstance(duration, int):
+                await ctx.send(f"Ban duration of {duration} is not possible.")
+            else:
+                await self.ban(ctx, memberNameID)
+                await ctx.send(common.temp_message(member.name, duration, "banned"))
+                await asyncio.sleep(common.minutes_to_seconds(duration))
+                await self.unban(ctx, memberNameID)
+                await ctx.send(f"{memberNameID} has been unbanned.")
+
+    @commands.command(name="mute")
+    async def mute(self, ctx, memberNameID, reason=None):
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            await member.add_roles(discord.Object(common.muted_role_id), reason=reason)
+
+    @commands.command(name="unmute")
+    async def unmute(self, ctx, memberNameID, reason=None):
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            await member.remove_roles(discord.Object(common.muted_role_id), reason=reason)
+
+    @commands.command(name="kick")
+    async def kick(self, ctx, memberNameID, reason=None):
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            await member.kick(reason=reason)
 
     @commands.command(name="ban")
     async def ban(self, ctx, memberNameID, reason=None):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
             await member.ban(reason=reason)
 
     @commands.command(name="unban")
     async def unban(self, ctx, memberNameID, reason=None):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
             await member.unban(reason=reason)
-
-    @commands.command(name="tempban")
-    async def tempban(self, ctx, memberNameID, duration=5, reason=None):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            if type(duration) == str:
-                await ctx.send(f"Ban duration of {duration} is not possible.")
-            else:
-                await self.ban(ctx, memberNameID)
-                await ctx.send(f"{member.name} has been banned for {duration} minute{common.check_plural(duration)}.")
-                await asyncio.sleep(common.minutes_to_seconds(duration))
-                await self.unban(ctx, memberNameID)
-
-    @commands.command(name="kick")
-    async def kick(self, ctx, memberNameID, reason=None):
-        if not ctx:
-            member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        else:
-            member = common.get_member(self.bot, memberNameID)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            try:
-                await member.kick(reason=reason)
-                await ctx.send(f"{member.name} has been kicked.")
-            except discord.errors.Forbidden:
-                await ctx.send(f"{member.name} cannot be kicked. I am missing permissions.")
 
     @commands.command(name="dj")
     async def dj(self, ctx, memberNameID):
-        member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-        if not member:
-            await ctx.send(f"{memberNameID} not found!")
-        elif member != 2:
-            await member.add_roles(discord.Object(common.dj_role_id), reason=f"Command from {member.name}")
+        member = await self.check_author(memberNameID, ctx.author, ctx=ctx)
+        if member:
+            await member.add_roles(discord.Object(common.dj_role_id),
+                                   reason=common.dj_message(ctx.author.name, member.name))
+
+    # @commands.command(name="warn")
+    # async def warn(self, ctx, reason=None):
+    #     # second case warn user's message
+    #     reference_message = ctx.message.reference
+    #     if reference_message:
+    #         reference_channel = await self.bot.fetch_channel(reference_message.channel_id)
+    #         reference_message = await reference_channel.fetch_message(reference_message.message_id)
+    #         memberNameID = reference_message.author.id
+    #         reason = "saying bad words"
+    #         member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
+    #         if not member:
+    #             await ctx.send(f"{memberNameID} not found!")
+    #         elif member != 2:
+    #             await self.add_violation(reference_message)
+    #     else:
+    #         await ctx.send("Please reply to the message that did a violation")
 
 
 def setup(bot):

@@ -5,12 +5,14 @@ from dotenv import load_dotenv
 import sys
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 import common
+from discord_components import DiscordComponents
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='~',
                    intents=intents)
+DiscordComponents(bot)
 
 
 async def check_user_id(ctx):
