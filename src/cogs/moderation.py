@@ -52,7 +52,8 @@ class Moderation(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         try:
-            if message.guild.id == common.oasis_guild_id and not message.author.bot and not message.channel.is_nsfw():
+            if not message.author.bot and not message.content.startswith(common.bot_prefixes) \
+                    and message.guild.id == common.oasis_guild_id and not message.channel.is_nsfw():
                 timestampLastMessage = \
                     common.database.get([("memberID", message.author.id), ("timestampLastMessage", "")])[0][0]
                 totalTimeMessage = (datetime.now() - common.timestamp_convert(timestampLastMessage)).seconds
@@ -66,11 +67,11 @@ class Moderation(commands.Cog):
                 # reset counter if it's over the temporary duration
                 elif totalTimeMessage > common.minutes_to_seconds(common.temporary_duration):
                     common.database.update([("memberID", message.author.id), ("counter", 0)])
+
                 # updates last message sent and timestamp of it
-                if not message.content.startswith(common.bot_prefixes):
-                    common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
-                    common.database.update([("memberID", message.author.id),
-                                            ("timestampLastMessage", common.snowflake_to_timestamp(message.id))])
+                common.database.update([("memberID", message.author.id), ("lastMessage", message.content)])
+                common.database.update([("memberID", message.author.id),
+                                        ("timestampLastMessage", common.snowflake_to_timestamp(message.id))])
         except (AttributeError, IndexError):
             pass
 
@@ -96,8 +97,8 @@ class Moderation(commands.Cog):
         # if the last time violation till now is greater than 90 minutes then reset violations
         if (numViolations > 0) and (totalTimeViolation > banTimeSeconds):
             common.database.update([("memberID", author_id), ("numViolations", 0)])
-
-        if (muteViolationCount <= numViolations <= muteViolationCount) and (totalTimeViolation < muteTimeSeconds):
+            return
+        elif (muteViolationCount <= numViolations <= muteViolationCount) and (totalTimeViolation < muteTimeSeconds):
             return await self.tempmute(ctx, author_id, reason=common.violation_reason(muteViolationCount, "muted"))
         elif (kickViolationCount <= numViolations <= kickViolationCount) and (totalTimeViolation < kickTimeSeconds):
             return await self.kick(ctx, author_id, reason=common.violation_reason(kickViolationCount, "kicked"))

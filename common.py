@@ -26,7 +26,7 @@ unknown_role_id = 814155609158713414
 all_roles = [member_role_id, mod_role_id, admin_role_id, based_zeus_role_id, dj_role_id]
 
 temporary_duration = 3
-counter_count = 6
+counter_count = 3
 mute_violation_count = 3
 mute_violation_time = 30
 kick_violation_count = 8
@@ -35,7 +35,7 @@ ban_violation_count = 12
 ban_violation_time = 90
 threshold_count = 20
 
-bot_prefixes = ('!', '~', '-', '_', '.', 'ch!')
+bot_prefixes = ('!', '~', '-', '_', '.', 'ch!', 'pls')
 normal_message_xp = 100
 bot_message_xp = 200
 voice_xp = 451  # multiplied with the minutes
