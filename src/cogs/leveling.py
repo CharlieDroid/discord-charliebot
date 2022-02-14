@@ -260,8 +260,8 @@ class Leveling(commands.Cog):
             if new_level != level:
                 common.database.update([("memberID", memberID), ("level", level)], dbTable="leveling")
                 member = common.get_member(self.bot, memberID)
-                await general_channel.send(f"Good job <@{memberID}>:confetti_ball:, you progressed to level "
-                                           f"{level}!:arrow_double_up:")
+                # await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
+                #                            f"{level}!:arrow_double_up:")
 
         if not author_id:
             memberID_list = common.database.get([('', ''), ("memberID", '')])

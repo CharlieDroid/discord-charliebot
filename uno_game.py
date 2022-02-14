@@ -59,9 +59,9 @@ examples: `p yw 9`, `p be 1 u`, `p bk +4 rd`, `p bk w gn u`
 `y (cr|u) (u)` or `n`
 
 Notes:
-When playing a card and yes when card is playable, color must be specified if card to be played is black.
+When playing a card or `y` when card is playable, color must be specified if card to be played is black.
 Make sure that the cards to be played is inside the hand of the player.
-No protection when drawing all cards from discard and draw pile.
+No protection when emptying all cards from discard and draw pile.
 Card stacking is set to true as default
 """
 import random as rand
@@ -127,14 +127,14 @@ class Card:
 
 
 class DrawPile:
-    def __init__(self):
+    def __init__(self, decks=1):
         self.deck = []
-        self.init_deck()
+        [self.init_deck() for i in range(decks)]
 
     def init_deck(self):
-        colorList = list(colors.keys())[:4]
-        black = list(colors.keys())[-1]
-        valuesList = list(values.keys())
+        colorList = list(colors)[:4]
+        black = list(colors)[-1]
+        valuesList = list(values)
         numberValues = valuesList[1:10]
         actionCards = valuesList[10:13]
         wildCards = valuesList[-2:]
@@ -193,9 +193,9 @@ class DiscardPile:
 
 
 class Player:
-    def __init__(self, name, hand):
+    def __init__(self, name):
         self.name = name
-        self.hand = hand
+        self.hand = []
         self.points = 0
         self.saidUno = False
 
@@ -208,6 +208,17 @@ class Player:
 
     def add_card(self, card):
         self.hand.append(card)
+        self.sort_hand()
+
+    def sort_hand(self):
+        def get_first(card_tuple):
+            return card_tuple[0]
+        # sorts the cards by colors and value
+        colorOrder, valueOrder = list(colors), list(valuePoints)
+        valueList = sorted([(valueOrder.index(card.value), card) for card in self.hand], key=get_first)
+        self.hand = [card_tuple[1] for card_tuple in valueList]
+        colorList = sorted([(colorOrder.index(card.color), card) for card in self.hand], key=get_first)
+        self.hand = [card_tuple[1] for card_tuple in colorList]
 
     def get_hand_points(self):
         points = 0
@@ -215,9 +226,8 @@ class Player:
             points += valuePoints[card.value]
         return points
 
-    def new_hand(self, hand):
-        self.saidUno = False
-        self.hand = hand
+    def __len__(self):
+        return len(self.hand)
 
     def __repr__(self):
         return f"{self.name}{' UNO' if self.saidUno else ''}: " \
@@ -228,8 +238,8 @@ class PlayerInstruction:
     def __init__(self, instruction):
         # Type:
         # p = Play, c = Challenge, d = Draw card, y = Yes, n = No, e = Error
-        self.types = {'p': "play", 'y': "yes", 'n': "no", 'c': "challenge", 'd': "draw card", 'e': "error"}
-        if not instruction or instruction[0] not in list(self.types):
+        self.types = {'p': "play", 'y': "yes", 'n': "no", 'c': "challenge", 'd': "draw card", 'e': "error", 'u': "uno"}
+        if not instruction or (instruction[0] not in list(self.types)):
             self.type = list(self.types)[-1]
         else:
             self.instruction = instruction.lower().split()
@@ -279,7 +289,7 @@ class PlayerInstruction:
 
 
 class UnoGame:
-    def __init__(self, playerNames, seed, winningPoints=500, players=None):
+    def __init__(self, playerNames, seed, decks=1, winningPoints=None, players=None):
         if players is None:
             players = []
         self.seed = seed
@@ -288,9 +298,12 @@ class UnoGame:
         self.numPlayers = len(self.playerNames)
         self.check_players()
 
-        self.startingNumberOfCards = 7
+        self.startNumCards = 7
+        self.decks = decks
         self.winningPoints = winningPoints
-        self.drawPile = DrawPile()
+        if winningPoints is None:
+            self.winningPoints = self.numPlayers * 150 - 100
+        self.drawPile = DrawPile(decks=self.decks)
         self.discardPile = DiscardPile()
         self.clockwise = True
         self.toSkip = False  # for skip
@@ -303,8 +316,7 @@ class UnoGame:
 
         self.cardStacking = True
         self.stacks = 0
-        # what card value is being stacked
-        self.stackingValue = None
+        self.stackingValue = None  # what card value is being stacked
 
     def check_players(self):
         if self.numPlayers < 2 or self.numPlayers > 10:
@@ -331,29 +343,30 @@ class UnoGame:
 
     def draw(self, player, numberOfCards, skip=True):
         self.check_deck(numberOfCards)
+        drawnCards = []
         for i in range(numberOfCards):
-            player.add_card(self.drawPile.get_card())
-        if player.saidUno and len(player.hand) > 1:
+            drawnCard = self.drawPile.get_card()
+            drawnCards.append(drawnCard)
+            player.add_card(drawnCard)
+        if player.saidUno and len(player) > 1:
             player.saidUno = not player.saidUno
         # if draw more than 1 card and is not a challenge then skip
         if numberOfCards > 1 and skip:
             self.skip()
+        return drawnCards
 
     def check_winner(self):
         # if previous player who placed a card is winner
         if not self.players[self.currentPlayerIndex].hand:
             winnerPlayer = self.players[self.currentPlayerIndex]
             # get total points from current game
-            points = 0
             for i in range(self.numPlayers):
                 if i != self.currentPlayerIndex:
-                    points += self.players[i].get_hand_points()
-            winnerPlayer.points += points
+                    winnerPlayer.points += self.players[i].get_hand_points()
             # if winner has greater than 500 points then he has won the game and game stops
+            self.winner = winnerPlayer
             if winnerPlayer.points >= self.winningPoints:
                 self.finalWinner = winnerPlayer
-            else:
-                self.winner = winnerPlayer
 
     def check_stack(self, value):
         if self.cardStacking:
@@ -382,13 +395,16 @@ class UnoGame:
             draw_card('+4')
             cardPlayed.color = colorChosen
         elif cardPlayed.value == 'w':
-            cardPlayed.color = colorChosen
+            if not self.discardPile.deck:
+                cardPlayed.color = 'bk'
+            else:
+                cardPlayed.color = colorChosen
         self.discardPile.add_card(cardPlayed)
         self.check_winner()
 
     def challenge(self):
         previousPlayer = self.players[self.previousPlayerIndex]
-        if not previousPlayer.saidUno and len(previousPlayer.hand) == 1:
+        if not previousPlayer.saidUno and len(previousPlayer) == 1:
             previousPlayer.saidUno = True
             self.draw(previousPlayer, 2, skip=False)
             return "cs"
@@ -419,27 +435,35 @@ class UnoGame:
             self.toSkip = False
             self.currentPlayerIndex = self.get_next_player()
         # if two players ago is in uno but did not callout it will be set to true
-        if self.previousTwoPlayerIndex and (len(self.players[self.previousTwoPlayerIndex].hand) == 1):
-            self.players[self.previousTwoPlayerIndex].saidUno = True
+        if self.previousTwoPlayerIndex:
+            check = self.previousTwoPlayerIndex != self.previousPlayerIndex
+            if check and len(self.players[self.previousTwoPlayerIndex]) == 1:
+                self.players[self.previousTwoPlayerIndex].saidUno = True
 
     def start_game(self):
         # gives the players the feel of shuffling the deck
         self.drawPile.shuffle(self.seed)
         # seed is used to ensure a different deck is shuffled everytime
-        # players are initialized
+        # players are initialized seven cards are dealt to each player
         if not self.players:
             for playerName in self.playerNames:
-                # seven cards are dealt to each player
-                playerHand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
-                self.players.append(Player(playerName, playerHand))
+                self.players.append(Player(playerName))
+                [self.players[-1].add_card(self.drawPile.get_card()) for i in range(self.startNumCards)]
         else:
             for player in self.players:
-                playerHand = [self.drawPile.get_card() for i in range(self.startingNumberOfCards)]
-                player.new_hand(playerHand)
+                player.hand = [self.drawPile.get_card() for i in range(self.startNumCards)]
+                player.saidUno = False
+                player.sort_hand()
 
         # a card is picked from the draw pile and is played to first player
-        self.play(self.drawPile.get_card())
-        self.update_turn()
+        # if card is +4 then shuffle the deck again
+        card = self.drawPile.get_card()
+        if card.value == '+4':
+            self.drawPile.add_card(card)
+            self.start_game()
+        else:
+            self.play(card)
+            self.update_turn()
 
     def turn(self, instruction):
         # ne = Not Eligible for Uno, cp = Card Playable, ie = Error Instruction, ut = Unknown Type of instruction
@@ -449,11 +473,6 @@ class UnoGame:
             # "cs" or "cu"
             return self.challenge()
 
-        if instruction.uno and len(currentPlayer.hand) == 1:
-            currentPlayer.saidUno = True
-        elif instruction.uno:
-            return "ne"
-
         if instruction.type == 'y' and self.drawnCard:
             card = currentPlayer.get_card(self.drawnCard)
             self.drawnCard = None
@@ -462,8 +481,7 @@ class UnoGame:
             self.drawnCard = None
         elif instruction.type == 'd':
             if not self.stacks:
-                self.draw(currentPlayer, 1)
-                drawnCard = currentPlayer.hand[-1]
+                drawnCard = self.draw(currentPlayer, 1)[0]
                 if self.check_play(drawnCard):
                     self.drawnCard = drawnCard
                     return "cp"
@@ -482,13 +500,21 @@ class UnoGame:
             return "ie"
         else:
             return "ut"
+
+        if instruction.uno and len(currentPlayer) == 1:
+            currentPlayer.saidUno = True
+        elif instruction.uno:
+            return "ne"
         self.update_turn()
 
     def new_game(self):
         # shuffle original seed and players
         seedList = list(self.seed)
+        rand.seed(self.seed)
         rand.shuffle(seedList)
         self.seed = ''.join(seedList)
         rand.seed(self.seed)
         rand.shuffle(self.players)
-        self.__init__(self.playerNames, self.seed, players=self.players)
+        self.__init__(self.playerNames, self.seed, players=self.players, winningPoints=self.winningPoints,
+                      decks=self.decks)
+        self.start_game()

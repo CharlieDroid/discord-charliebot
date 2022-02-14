@@ -35,7 +35,7 @@ ban_violation_count = 12
 ban_violation_time = 90
 threshold_count = 20
 
-bot_prefixes = ('!', '~', '-', '_', '.', 'ch!', 'pls')
+bot_prefixes = ('!', '~', '-', '_', '.', 'ch!', 'pls', 'p!')
 normal_message_xp = 100
 bot_message_xp = 200
 voice_xp = 451  # multiplied with the minutes
@@ -57,6 +57,9 @@ spamming = [r"https://c.tenor.com/kRKsQcSUmIYAAAAC/no-spam-spam-go-away.gif",
             r"https://c.tenor.com/mZZoOtDcouoAAAAM/stop-it-get-some-help.gif"]
 bad_words = ("fck", "fcking")
 database = DiscordDatabase()
+
+
+def check_plural(num): return 's' if num > 1 else ''
 
 
 def member_not_found(m): return f"{m} not found!"
@@ -93,8 +96,8 @@ def timestamp_convert(datetime_float_obj):
 
 
 def snowflake_to_timestamp(snowflake):
-    # right shift snowflake by 22 the same as snowflake / (2**22) but not recommended because it's slower
-    # divided by 1000 because this timestamp is in seconds converting it to ms
+    # Right shift snowflake by 22 is equal to snowflake / (2**22)
+    # This is divided by 1000 to convert to ms
     return float(((snowflake >> 22) + 1420070400000) / 1000)
 
 
@@ -127,10 +130,8 @@ def get_member(bot, memberNameID):
     return member
 
 
-def check_plural(num): return 's' if num > 1 else ''
-
-
 def number_readability(num):
+    numberName = {3: 'K', 6: 'M', 9: 'B', 12: 'T', 15: 'q', 18: 'Q', 21: 's', 24: 'S'}
     if num > 999999:
         num /= 1e6
         num = str(round(num, 1)) + 'M'

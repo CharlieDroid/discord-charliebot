@@ -53,7 +53,8 @@ class Moderation(commands.Cog):
     async def on_message(self, message):
         try:
             if not message.author.bot and not message.content.startswith(common.bot_prefixes) \
-                    and message.guild.id == common.oasis_guild_id and not message.channel.is_nsfw():
+                    and message.guild.id == common.oasis_guild_id and not message.channel.is_nsfw() \
+                    and not message.content == '':
                 timestampLastMessage = \
                     common.database.get([("memberID", message.author.id), ("timestampLastMessage", "")])[0][0]
                 totalTimeMessage = (datetime.now() - common.timestamp_convert(timestampLastMessage)).seconds

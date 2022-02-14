@@ -9,17 +9,15 @@ from discord_components import DiscordComponents
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
-intents = discord.Intents.all()
+intents = discord.Intents.default()
+intents.members = True
 bot = commands.Bot(command_prefix='~',
                    intents=intents)
 DiscordComponents(bot)
 
 
 async def check_user_id(ctx):
-    if ctx.author.id == common.blue_bird_id:
-        await ctx.send('Are you mama?')
-        return False
-    elif ctx.author.id != common.owner_id:
+    if ctx.author.id != common.owner_id:
         await ctx.send("You are not my father")
         return False
     return True

@@ -17,6 +17,45 @@ async def disable_components(interaction, content="Your turn has ended"):
     await interaction.message.edit(components=interaction.message.components)
 
 
+def num_to_emoji(number):
+    value = {0: ":zero:",
+             1: ":one:",
+             2: ":two:",
+             3: ":three:",
+             4: ":four:",
+             5: ":five:",
+             6: ":six:",
+             7: ":seven:",
+             8: ":eight:",
+             9: ":nine:"}
+    digits = [value[int(num)] for num in list(str(number))]
+    return "**+**" + ''.join(digits)
+
+
+def convert_emoji(card):
+    color = {'rd': ":red_circle:",
+             'yw': ":yellow_circle:",
+             'be': ":blue_circle:",
+             'gn': ":green_circle:",
+             'bk': ":black_circle:"}
+    value = {"0": ":zero:",
+             "1": ":one:",
+             "2": ":two:",
+             "3": ":three:",
+             "4": ":four:",
+             "5": ":five:",
+             "6": ":six:",
+             "7": ":seven:",
+             "8": ":eight:",
+             "9": ":nine:",
+             "r": ":arrows_counterclockwise:",
+             "s": ":track_next:",
+             "+2": "**+**:two:",
+             "w": ":regional_indicator_w:",
+             "+4": "**+**:four:"}
+    return f"{color[card.color]}{value[card.value]}"
+
+
 def combine_inputs(first, second, third):
     instruction = first
     if second and third:
@@ -30,7 +69,21 @@ def combine_inputs(first, second, third):
     return instruction
 
 
-def create_embed(title, color=0xee2020): return discord.Embed(title=title, color=color)
+def create_embed(description, title="UNO Game", color=0xee2020):
+    return discord.Embed(title=title, description=description, color=color)
+
+
+def create_win_embed(uno, color=0xee2020, finalWin=False):
+    if not finalWin:
+        embed = discord.Embed(title="Round Summary",
+                              description=f"**First to reach {uno.winningPoints} points wins!**:confetti_ball:",
+                              color=color)
+    else:
+        embed = discord.Embed(title="Finished UNO Game",
+                              description=f"**The winner is {uno.finalWinner}!**:partying_face:", color=color)
+    for player in uno.players:
+        embed.add_field(name=f"{player.name} Points", value=str(player.points), inline=False)
+    return embed
 
 
 def create_options(player):
@@ -69,34 +122,64 @@ class Uno(commands.Cog):
         self.waitList = []
         self.seed = None
         self.unoStart = False
+        self.moves = []
 
     async def game(self):
-        self.uno.start_game()
-        while not self.uno.finalWinner:
+        while True:
             while not self.uno.winner:
                 current = self.uno.currentPlayerIndex
                 currentPlayer = self.players[current]
                 for i, player in enumerate(self.players):
                     if i != current:
                         await self.challenge_message(index=i)
-                turn = self.uno.turn(await self.turn_message(index=current))
-                await self.check_turn(turn)
+                instruction, interaction = await self.turn_message(index=current)
+                while not await self.check_instruction(instruction, interaction, index=current):
+                    instruction, interaction = await self.turn_message(index=current)
+                self.moves.append(instruction.translate())
+                await self.check_turn(self.uno.turn(instruction))
                 if self.uno.clockwise != self.clockwise:
                     self.clockwise = not self.clockwise
                     self.players = self.players[::-1]
-            for currentPlayer in self.players:
-                await currentPlayer.send(embed=create_embed(f"The winner is {self.uno.winner.name}"))
-            self.uno.new_game()
-            self.player_reorder()
+            if not self.uno.finalWinner:
+                for player in self.players:
+                    await player.send(embed=create_win_embed(self.uno))
+                self.uno.new_game()
+                self.player_reorder()
+            else:
+                break
+        for player in self.players:
+            await player.send(embed=create_win_embed(self.uno, finalWin=True))
+        self.__init__(self.bot)
 
     async def check_turn(self, turn):
         current = self.uno.currentPlayerIndex
         currentPlayer = self.players[current]
         if turn == "cp":
-            turn = self.uno.turn(await self.playable_message(index=current))
-            await self.check_turn(turn)
+            instruction, interaction = await self.playable_message(index=current)
+            while not await self.check_instruction(instruction, interaction, index=current, insType='y'):
+                instruction, interaction = await self.playable_message(index=current)
+            self.moves.append(instruction.translate())
+            await self.check_turn(self.uno.turn(instruction))
         elif turn:
-            await currentPlayer.send(embed=create_embed(title=interpret(turn)))
+            await currentPlayer.send(embed=create_embed(description=interpret(turn)))
+
+    async def check_instruction(self, instruction, interaction, index, insType='p'):
+        if instruction and insType == 'p':
+            card = instruction.playCard
+        elif instruction and insType == 'y':
+            card = self.uno.drawnCard
+        else:
+            return False
+
+        if instruction.type == 'e':
+            await disable_components(interaction, content="Instructions unclear")
+            return False
+        elif instruction.type == insType and card.color == 'bk' and not instruction.colorChosen:
+            await disable_components(interaction, content="Please select the card and specify the color")
+            return False
+        else:
+            await disable_components(interaction)
+            return True
 
     def player_reorder(self):
         players = self.players
@@ -107,11 +190,10 @@ class Uno(commands.Cog):
                     self.players.append(playerObj)
 
     @commands.command(name="uno", aliases=['u'])
-    async def uno(self, ctx, players, seed):
-        if ctx.author.id in common.the_council_id:
-            self.seed = seed
+    async def uno(self, ctx, players):
+        if ctx.author.id in common.the_council_id and self.seed:
             self.players = [common.get_member(self.bot, memberID) for memberID in players.split()]
-            self.uno = UnoGame([player.name for player in self.players], seed)
+            self.uno = UnoGame([player.name for player in self.players], self.seed)
             messages = []
             for player in self.players:
                 custom_id = 'y' + str(player.id)
@@ -129,27 +211,6 @@ class Uno(commands.Cog):
                     await message.edit(content="Timed Out!", components=message.components)
                 self.__init__(self.bot)
 
-    def uno_ui(self, index):
-        playerOrder = []
-        for i, player in enumerate(self.uno.players):
-            if i != self.uno.currentPlayerIndex:
-                text = f"{player.name} ({len(player.hand)})"
-                if player.saidUno:
-                    text += f" ***UNO***"
-            else:
-                text = f"**{player.name} ({len(player.hand)})**"
-                if player.saidUno:
-                    text += f" ***UNO***"
-            playerOrder.append(text)
-        playerOrder = (' > ' if self.uno.clockwise else ' < ').join(playerOrder)
-        playerOrder += f"\n`Stacks: {self.uno.stacks}`"
-        embed = discord.Embed(title="UNO Game", description=playerOrder, color=0xee2020)
-
-        embed.add_field(name="Discard Pile", value=f"`{self.uno.discardPile.top_card()}`", inline=False)
-        cardsHand = [f"{colors[card.color]} {values[card.value]}" for card in self.uno.players[index].hand]
-        embed.add_field(name="Your Hand", value=f"`{', '.join(cardsHand)}`", inline=True)
-        return embed
-
     @commands.Cog.listener()
     async def on_button_click(self, interaction):
         if interaction.custom_id.startswith('y') and not self.unoStart:
@@ -158,51 +219,128 @@ class Uno(commands.Cog):
                 await disable_components(interaction, content="Answer confirmed!")
                 if not self.waitList:
                     self.unoStart = True
+                    self.uno.start_game()
                     await self.game()
         elif interaction.custom_id == "cs":
-            turn = self.uno.turn(PlayerInstruction(interaction.custom_id[0]))
+            instruction = PlayerInstruction(interaction.custom_id[0])
+            self.moves.append(instruction.translate())
+            turn = self.uno.turn(instruction)
             await disable_components(interaction, content=interpret(turn))
-            # possibly tell other the players too
+            if turn == "cs":
+                for player in self.players:
+                    await player.send(content=interpret(turn))
 
     @commands.command()
     async def test(self, ctx):
-        self.players = [ctx.author, ctx.author]
-        self.uno = UnoGame(["Player 1", "Player 2"], "1234")
-        self.unoStart = True
-        self.uno.start_game()
-        while not self.uno.winner:
-            i = self.uno.currentPlayerIndex
-            nextIndex = not i
-            await self.challenge_message(index=nextIndex)
-            turn = self.uno.turn(await self.turn_message(index=i))
-            await self.check_turn(turn)
+        guild = self.bot.get_guild(common.oasis_guild_id)
+        member = guild.get_member(799843363058221076)
+        member = guild.get_member(319032492059525130)
+        member = guild.get_member(498374117561597972)
+        print(member)
+        print(dir(member))
+        try:
+            message = await member.send("Ohayo!")
+            print(message)
+            print("Message Sent!")
+        except discord.Forbidden:
+            print("Forbidden")
+        # self.players = [ctx.author, ctx.author]
+        # self.uno = UnoGame(["Player 1", "Player 2"], "")
+        # self.unoStart = True
+        # self.uno.start_game()
+        # stacking_moves = ["p rd r", 'd', "p rd 3", "p bk w yw", "p yw +2"]
+        # for move in stacking_moves:
+        #     self.uno.turn(PlayerInstruction(move))
+        # await ctx.send(embed=self.uno_ui(self.uno.currentPlayerIndex))
+        # # while not self.uno.winner:
+        # #     i = self.uno.currentPlayerIndex
+        # #     nextIndex = not i
+        # #     await self.challenge_message(index=nextIndex)
+        # #     instruction, interaction = await self.turn_message(index=i)
+        # #     while not await self.check_instruction(instruction, interaction, index=i):
+        # #         instruction, interaction = await self.turn_message(index=i)
+        # #     await self.check_turn(self.uno.turn(instruction))
+        # # for player in self.players:
+        # #     await player.send(embed=create_win_embed(self.uno))
+        # # self.__init__(self.bot)
 
     @commands.command()
-    async def uno_seed(self, seed):
+    async def uno_seed(self, ctx, seed):
         if not self.seed:
             self.seed = seed
         else:
             self.seed += seed
+        await ctx.send(f"The new seed is `{self.seed}`")
+
+    @commands.command()
+    async def uno_load(self, ctx, moves=None, seed=None, players=None, winningPoints=None):
+        if ctx.author.id in common.the_council_id:
+            if not moves and seed:
+                moves = self.moves
+                seed = self.seed
+                players = [player.id for player in self.players]
+                winningPoints = self.uno.winningPoints
+                await ctx.send(f"Moves: ```python\n{self.moves}\n```\nSeed: ```python\n{self.seed}\n```")
+            else:
+                moves = moves[2:-2].split("', '")
+                seed = seed
+                players = players.split()
+                if winningPoints:
+                    winningPoints = int(winningPoints)
+
+            self.__init__(self.bot)
+            self.seed = seed
+            self.unoStart = True
+            self.players = [common.get_member(self.bot, memberID) for memberID in players]
+            self.uno = UnoGame([player.name for player in self.players], self.seed, winningPoints=winningPoints)
+            self.uno.start_game()
+            types = PlayerInstruction('y').types
+            typesFlipped = {y: x for x, y in types.items()}
+            colorsFlipped = {y: x for x, y in colors.items()}
+            valuesFlipped = {y: x for x, y in values.items()}
+            for move in moves:
+                instruction = []
+                if move == "draw card":
+                    instruction.append(typesFlipped[move])
+                else:
+                    for text in move.split():
+                        if text in typesFlipped:
+                            instruction.append(typesFlipped[text])
+                        elif text in colorsFlipped:
+                            instruction.append(colorsFlipped[text])
+                        elif text in valuesFlipped:
+                            instruction.append(valuesFlipped[text])
+                instruction = PlayerInstruction(' '.join(instruction))
+                if not self.uno.winner:
+                    self.uno.turn(instruction)
+                else:
+                    self.uno.new_game()
+                    self.uno.turn(instruction)
+            await self.game()
+        elif ctx.author.id in common.the_council_id:
+            await ctx.send(f"Moves: ```python\n{self.moves}\n```\nSeed: ```python\n{self.seed}\n```")
 
     async def challenge_message(self, index):
         components = [Button(label="challenge", style=ButtonStyle.red, custom_id="cs")]
-        await self.players[index].send(embed=self.uno_ui(index), components=components)
+        message = await self.players[index].send(embed=self.uno_ui(index), components=components)
 
     async def turn_message(self, index):
-        components = [Select(placeholder="Select which card to play",
-                             options=create_options(self.uno.players[index]),
-                             custom_id='p'),
-                      Select(placeholder="Specify color if card chosen is black",
-                             options=create_color_options()),
-                      [Button(label="draw card", style=ButtonStyle.green, custom_id='d'),
-                       Button(label="uno", style=ButtonStyle.gray, custom_id='u'),
-                       Button(label="challenge", style=ButtonStyle.red, custom_id='c'),
-                       Button(label="end turn", style=ButtonStyle.blue, custom_id="end")]]
+        components = [
+            Select(placeholder="Select which card to play",
+                   options=create_options(self.uno.players[index]),
+                   custom_id='p'),
+            Select(placeholder="Specify color if card chosen is black",
+                   options=create_color_options()),
+            [Button(label="draw card", style=ButtonStyle.green, custom_id='d'),
+             Button(label="uno", style=ButtonStyle.gray, custom_id='u'),
+             Button(label="challenge", style=ButtonStyle.red, custom_id='c'),
+             Button(label="end turn", style=ButtonStyle.blue, custom_id="end")]]
         message = await self.players[index].send(embed=self.uno_ui(index), components=components)
 
         firstInput, secondInput, thirdInput, instruction = None, None, None, None
         while True:
-            interaction = await self.bot.wait_for("interaction", check=lambda i: i.message.id == message.id)
+            interaction = await self.bot.wait_for("interaction", check=lambda inter: inter.message.id == message.id)
+
             if isinstance(interaction.component, Select):
                 if interaction.custom_id == 'p':
                     card = interaction.values[0]
@@ -219,31 +357,22 @@ class Uno(commands.Cog):
                 firstInput = interaction.custom_id
 
             instruction = PlayerInstruction(combine_inputs(firstInput, secondInput, thirdInput))
-            await interaction.send(content=f"Turn: {instruction.translate()}")
-
-        if instruction.type == 'e':
-            await disable_components(interaction, content="Instructions unclear")
-            await self.turn_message(index)
-        elif instruction.type == 'p' and instruction.playCard.color == 'bk' and not instruction.colorChosen:
-            await disable_components(interaction, content="Please select the card and specify the color")
-            await self.turn_message(index)
-        else:
-            await disable_components(interaction)
-            return instruction
+            await interaction.send(content=f"Turn: `{instruction.translate()}`")
+        return instruction, interaction
 
     async def playable_message(self, index):
-        components = [[Button(label="yes", style=ButtonStyle.green, custom_id='y'),
+        components = [Select(placeholder="Specify color if card is black",
+                             options=create_color_options()),
+                      [Button(label="yes", style=ButtonStyle.green, custom_id='y'),
                        Button(label="no", style=ButtonStyle.red, custom_id='n'),
                        Button(label="uno", style=ButtonStyle.gray, custom_id='u'),
-                       Button(label="end turn", style=ButtonStyle.blue, custom_id="end")],
-                      Select(placeholder="Specify color if card is black",
-                             options=create_color_options())]
-        card = self.uno.drawnCard
+                       Button(label="end turn", style=ButtonStyle.blue, custom_id="end")]]
         message = await self.players[index].send(embed=create_embed(
-            title=f"Play {colors[card.color]} {values[card.value]}?"), components=components)
+            description=f"Play {convert_emoji(self.uno.drawnCard)}?"),
+            components=components)
         firstInput, secondInput, thirdInput, instruction = None, None, None, None
         while True:
-            interaction = await self.bot.wait_for("interaction", check=lambda i: i.message.id == message.id)
+            interaction = await self.bot.wait_for("interaction", check=lambda inter: inter.message.id == message.id)
             if interaction.custom_id == "end":
                 break
             # colors to choose
@@ -257,17 +386,29 @@ class Uno(commands.Cog):
                 firstInput = interaction.custom_id
 
             instruction = PlayerInstruction(combine_inputs(firstInput, secondInput, thirdInput))
-            await interaction.send(content=f"Turn: {instruction.translate()}")
+            await interaction.send(content=f"Turn: `{instruction.translate()}`")
+        return instruction, interaction
 
-        if instruction.type == 'e':
-            await disable_components(interaction, content="Instructions unclear")
-            await self.playable_message(index)
-        elif instruction.type == 'y' and card.color == 'bk' and not instruction.colorChosen:
-            await disable_components(interaction, content="Please select the card and specify the color")
-            await self.playable_message(index)
-        else:
-            await disable_components(interaction)
-            return instruction
+    def uno_ui(self, index):
+        playerOrder = []
+        for i, player in enumerate(self.uno.players):
+            if i != self.uno.currentPlayerIndex:
+                text = f"{player.name} ({len(player.hand)})"
+                if player.saidUno:
+                    text += f" ***UNO***"
+            else:
+                text = f"**{player.name} ({len(player.hand)})**"
+                if player.saidUno:
+                    text += f" ***UNO***"
+            playerOrder.append(text)
+        playerOrder = ' :arrow_right: '.join(playerOrder)
+        embed = discord.Embed(title="UNO Game", description=playerOrder, color=0xee2020)
+        if self.uno.stacks:
+            embed.add_field(name="Stacks", value=f"{num_to_emoji(self.uno.stacks)}")
+        embed.add_field(name="Discard Pile", value=f"{convert_emoji(self.uno.discardPile.top_card())}", inline=False)
+        cardsHand = [convert_emoji(card) for card in self.uno.players[index].hand]
+        embed.add_field(name="Your Hand", value=f"{', '.join(cardsHand)}", inline=True)
+        return embed
 
 
 def setup(bot):
