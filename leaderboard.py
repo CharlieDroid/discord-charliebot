@@ -19,6 +19,8 @@ class Leaderboard:
     def __init__(self, rowData, imageName=None):
         # rowData must contain
         # [(rank, imageObject, name, messages, voiceMinutes, passiveHours, Experience, Level, levelRatio),...]
+        # new rowData
+        # [(rank, imageObject, name, voiceMinutes, messages, reactions, passiveHours, XP, Level, levelRatio),...]
         self.numUsers = len(rowData)
         self.rowHeight = 100
         self.margin, self.textMargin = 15, 10
@@ -29,18 +31,20 @@ class Leaderboard:
         self.levelSize = 70
         self.rankSize = 40
         self.levelThickness = 3
-        # 150 is for the name (estimation)
-        self.statsSpace = int(round((self.canvasNoMargin[0] - self.rankSize - self.thumbnailSize[0] - self.levelSize - 150) / 5, 0))
+        # stats space is the space in between stats (lmao)
+        # change 200, the higher the closer, the lower the farther
+        stats_total_space = self.canvasNoMargin[0] - self.rankSize - self.thumbnailSize[0] - self.levelSize - 200
+        self.statsSpace = int(round(stats_total_space / len(rowData[0][3:-1]), 0))
         self.smallFontSize, self.mediumFontSize, self.largeFontSize = 12, 20, 22
 
         self.midnightColor = (0, 4, 13)
         self.nightGreyColor = (44, 54, 64)
         self.pastelOrangeColor = (255, 179, 71)
         self.pastelWhite = (250, 248, 246)
-        self.pastelGold = (212, 175, 55)
-        self.pastelSilver = (190, 194, 203)
-        self.pastelBronze = (169, 113, 66)
-        self.labelColor = (207, 207, 196)
+        self.pastelGold = (220, 180, 35)
+        self.pastelSilver = (180, 184, 193)
+        self.pastelBronze = (158, 104, 30)
+        self.labelColor = (207, 207, 202)
         self.valueColor = self.pastelWhite
 
         if imageName:
@@ -58,10 +62,12 @@ class Leaderboard:
                                     radius=self.radius / 2, fill=self.midnightColor)
 
         self.levelLabel = "LEVEL"
-        self.experienceLabel = "EXPERIENCE"
+        self.experienceLabel = "XP GAINED"
         self.passiveLabel = "HOURS JOINED"
-        self.voiceMinutesLabel = "MINUTES TALKING"
+        self.reactionsLabel = "REACTIONS"
         self.messagesLabel = "MESSAGES"
+        self.voiceMinutesLabel = "MINUTES ACTIVE"
+
         rowLoc = 0
         for row in rowData:
             self.draw_line(rowLoc)
@@ -74,7 +80,7 @@ class Leaderboard:
             level = row[-2]
             levelRatio = row[-1]
             levelXLoc = self.draw_level(rowLoc, level, levelRatio)
-            self.write_stats(rowLoc, levelXLoc, row[3], row[4], row[5], row[6])
+            self.write_stats(rowLoc, levelXLoc, row[3], row[4], row[5], row[6], row[7])
             rowLoc += self.rowHeight
 
     def draw_rank(self, rowLoc, rank):
@@ -115,17 +121,18 @@ class Leaderboard:
                        level, font=self.boldMediumFont, fill=self.valueColor)
         return levelXLoc
 
-    def write_stats(self, rowLoc, levelXLoc, messages, voiceMinutes, passiveHours, experience):
+    def write_stats(self, rowLoc, levelXLoc, voiceMinutes, messages, reactions, passiveHours, experience):
         centerYRowLoc = rowLoc + self.margin + round_off(self.rowHeight / 2)
         labelYLoc = centerYRowLoc - (self.textMargin * 2)
         valueYLoc = centerYRowLoc + round_off(self.textMargin / 10)
 
-        label_value_list = [(self.experienceLabel, experience, 0),
-                            (self.passiveLabel, passiveHours, 1),
-                            (self.voiceMinutesLabel, voiceMinutes, 2),
-                            (self.messagesLabel, messages, 3)]
-        for label_value in label_value_list:
-            self.stat_writer(levelXLoc, labelYLoc, valueYLoc, label_value[0], label_value[1], label_value[2])
+        label_value_list = [(self.experienceLabel, experience),
+                            (self.passiveLabel, passiveHours),
+                            (self.reactionsLabel, reactions),
+                            (self.messagesLabel, messages),
+                            (self.voiceMinutesLabel, voiceMinutes)]
+        for i, label_value in enumerate(label_value_list):
+            self.stat_writer(levelXLoc, labelYLoc, valueYLoc, label_value[0], label_value[1], i)
 
     def stat_writer(self, levelXLoc, labelYLoc, valueYLoc, label, value, stats_count):
         labelWidth, labelHeight = self.mediumFont.getsize(label)
@@ -161,3 +168,11 @@ class Leaderboard:
         imYLoc = round_off(self.margin + (self.rowHeight - self.thumbnailSize[0]) / 2 + rowLoc)
         self.canvas.paste(im, (imXLoc, imYLoc), im)
         return imXLoc + self.thumbnailSize[0]
+
+
+# imageObject = Image.open(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\default.png")
+# rowData = [(0, imageObject, "CharliePeepo", '138.8K', '4820', '100', '11.7K', '64.5M', '124', 0.10),
+#            (1, imageObject, "Kou", '63.1K', '305', '100', '11.7K', '29.5M', '95', 0.5),
+#            (2, imageObject, "Arapunda", '32.0K', '101', '11.4K', '15.2M', '76', 0.75)]
+# lb = Leaderboard(rowData)
+# lb.canvas.show()

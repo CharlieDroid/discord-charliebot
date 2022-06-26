@@ -66,6 +66,7 @@ class Verification(commands.Cog):
                                       timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
                                       timestampLastMessage=common.timestamp_convert(datetime.now()),
                                       rulesReaction=await self.get_reaction_welcome_message(member))
+                await ctx.send(f"{member.name} welcome message sent!")
             else:
                 await ctx.send(f"{memberNameID} not found!")
 
@@ -109,12 +110,11 @@ class Verification(commands.Cog):
             if member:
                 name = message[1]
                 snowflake = message[2]
-                common.database.insert(memberID=member.id,
-                                       memberUsername=member.name,
-                                       memberName=name,
-                                       timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
-                                       timestampLastMessage=common.timestamp_convert(datetime.now()),
-                                       rulesReaction=await self.get_reaction_welcome_message(member))
+                await database_insert(memberID=member.id,
+                                      memberUsername=member.name,
+                                      timestampJoined=common.snowflake_to_timestamp(int(snowflake)),
+                                      timestampLastMessage=common.timestamp_convert(datetime.now()),
+                                      rulesReaction=await self.get_reaction_welcome_message(member))
                 await ctx.send(f"{name} added to database!")
             else:
                 await ctx.send(f"{message[0]} not found!")

@@ -11,7 +11,7 @@ from profanity_check import predict_prob
 from discord.ext import commands
 from datetime import datetime
 
-profanity.add_censor_words(common.bad_words)
+profanity.load_censor_words(common.bad_words, whitelist_words=common.good_words)
 
 
 async def violation_warning(message, numViolations, messageType):
@@ -46,7 +46,7 @@ class Moderation(commands.Cog):
             if member is None:
                 if ctx is not None:
                     await ctx.send(common.member_not_found(memberNameID))
-                return False
+                return None
         return member
 
     @commands.Cog.listener()
@@ -183,23 +183,6 @@ class Moderation(commands.Cog):
         if member:
             await member.add_roles(discord.Object(common.dj_role_id),
                                    reason=common.dj_message(ctx.author.name, member.name))
-
-    # @commands.command(name="warn")
-    # async def warn(self, ctx, reason=None):
-    #     # second case warn user's message
-    #     reference_message = ctx.message.reference
-    #     if reference_message:
-    #         reference_channel = await self.bot.fetch_channel(reference_message.channel_id)
-    #         reference_message = await reference_channel.fetch_message(reference_message.message_id)
-    #         memberNameID = reference_message.author.id
-    #         reason = "saying bad words"
-    #         member = check_author(self.bot, memberNameID, ctx.author.id, ctx.author.top_role.id)
-    #         if not member:
-    #             await ctx.send(f"{memberNameID} not found!")
-    #         elif member != 2:
-    #             await self.add_violation(reference_message)
-    #     else:
-    #         await ctx.send("Please reply to the message that did a violation")
 
 
 def setup(bot):

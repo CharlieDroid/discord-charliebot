@@ -1,9 +1,13 @@
 from discord.ext import commands
+import requests
+from bs4 import BeautifulSoup
 import sys
 import discord
+import random
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 from random import randint
+import common
 
 
 class Features(commands.Cog):
@@ -38,10 +42,31 @@ class Features(commands.Cog):
         embed.set_footer(text="If you have extra gold use for main hero.")
         await ctx.send(embed=embed)
 
+    @commands.command(name="epic_scrape", aliases=["es"])
+    async def epic_scrape(self, ctx):
+        await ctx.trigger_typing()
+        r = requests.get(r"https://progameguides.com/lists/epic-games-store-free-games-list/")
+        soup = BeautifulSoup(r.content, "html.parser")
+        games = soup.find_all("h3")[:-6]
+        games = [game.get_text() for game in games[:-6]]
+        dates = soup.find_all("p", "has-text-align-center")[:len(games)]
+        dates = [date.get_text() for date in dates]
+        embed = discord.Embed(title="Current Free Games in Epic Games", color=0xffffff)
+        for i in range(len(dates)):
+            embed.add_field(name=games[i], value=dates[i], inline=False)
+        await ctx.send(embed=embed)
+
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if isinstance(error, discord.errors.Forbidden):
             await ctx.send(f"I am missing permissions.")
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member.id == 873790063836790794 and (before.channel is None and after.channel.id == 811395892338622512):
+            general_channel = await self.bot.fetch_channel(common.general_channel_id)
+            message = random.choices(["Hi people", "Hi guys"], weights=(0.6, 0.4))[0]
+            await general_channel.send(message)
 
 
 def setup(bot):

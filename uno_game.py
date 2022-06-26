@@ -129,7 +129,7 @@ class Card:
 class DrawPile:
     def __init__(self, decks=1):
         self.deck = []
-        [self.init_deck() for i in range(decks)]
+        [self.init_deck() for _ in range(decks)]
 
     def init_deck(self):
         colorList = list(colors)[:4]

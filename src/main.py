@@ -11,6 +11,7 @@ load_dotenv()
 TOKEN = os.getenv('TOKEN')
 intents = discord.Intents.default()
 intents.members = True
+intents.presences = True
 bot = commands.Bot(command_prefix='~',
                    intents=intents)
 DiscordComponents(bot)

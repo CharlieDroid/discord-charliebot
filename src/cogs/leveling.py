@@ -11,115 +11,106 @@ from datetime import datetime
 from discord.ext import commands
 from leaderboard import Leaderboard
 from common import number_readability as nr
+from math import ceil, exp
+
+"""
+Add inServer updater
+Update member username every on ready
+Check get_rank and get_stats if they can be combined and simplified
+Need fix for voice channel object
+benchmark the two code blocks in common.number_readability
+"""
 
 
 def next_level(level):
-    return 33.8 * level * level * level
+    return 50. * level * level * level
 
 
-async def add_message_count(author_id):
-    try:
-        messages = common.database.get([("memberID", author_id), ("messages", '')], dbTable="leveling")[0][0]
-        common.database.update([("memberID", author_id), ("messages", messages + 1)], dbTable="leveling")
-    except IndexError:
-        pass
+async def add_message_count(member_id):
+    messages = common.database.get([("memberID", member_id), ("messages", '')], dbTable="leveling")[0][0]
+    common.database.update([("memberID", member_id), ("messages", messages + 1)], dbTable="leveling")
 
 
-async def add_voice_minutes(author_id, voice_minutes):
-    old_voice_minutes = common.database.get([("memberID", author_id), ("voiceMinutes", '')], dbTable="leveling")[0][0]
+async def add_voice_minutes(member_id, voice_minutes):
+    old_voice_minutes = common.database.get([("memberID", member_id), ("voiceMinutes", '')], dbTable="leveling")[0][0]
     common.database.update(
-        [("memberID", author_id), ("voiceMinutes", common.round_off(old_voice_minutes + voice_minutes))],
+        [("memberID", member_id), ("voiceMinutes", common.round_off(old_voice_minutes + voice_minutes))],
         dbTable="leveling")
 
 
-async def add_passive_hours(author_id, passive_hours):
-    inServer = common.database.get([("memberID", author_id), ("inServer", '')])[0][0]
+async def add_passive_hours(member_id, passive_hours):
+    inServer = common.database.get([("memberID", member_id), ("inServer", '')])[0][0]
     if inServer:
-        old_passive_hours = common.database.get([("memberID", author_id), ("passiveHours", '')], dbTable="leveling")[0][
+        old_passive_hours = common.database.get([("memberID", member_id), ("passiveHours", '')], dbTable="leveling")[0][
             0]
         common.database.update(
-            [("memberID", author_id), ("passiveHours", common.round_off(old_passive_hours + passive_hours))],
+            [("memberID", member_id), ("passiveHours", common.round_off(old_passive_hours + passive_hours))],
             dbTable="leveling")
 
 
-async def add_experience(xp, author_id, timestampUpdated=None):
-    xp = common.round_off(xp)
-    old_experience = common.database.get([("memberID", author_id), ("experience", "")],
-                                         dbTable='leveling')[0][0]
-    experience = xp + old_experience
-    common.database.update([("memberID", author_id), ("experience", experience)], dbTable='leveling')
-    common.database.update([("memberID", author_id), ("previousExperience", old_experience)],
-                           dbTable="leveling")
-    if timestampUpdated:
-        common.database.update([("memberID", author_id), ("timestampLastUpdate", timestampUpdated)], dbTable='leveling')
+async def add_reaction_count(member_id):
+    reactions = common.database.get([("memberID", member_id), ("reactions", '')], dbTable="leveling")[0][0]
+    common.database.update([("memberID", member_id), ("reactions", reactions + 1)], dbTable="leveling")
 
 
-async def update_passive_xp():
-    memberID_list = common.database.get([('', ''), ("memberID", '')])
-    for member_tuple in memberID_list:
-        memberID = member_tuple[0]
-        timestampLastUpdate = common.database.get(
-            [("memberID", memberID), ("timestampLastUpdate", "")],
-            dbTable="leveling")[0][0]
-        now = datetime.now()
-
-        async def update_xp_and_timestamp_updated(memberID, now, datetimeUpdate):
-            deltaTime = now - datetimeUpdate
-            passiveHours = common.time_delta_to_hours(deltaTime)
-            xp = passiveHours * common.passive_xp
-            await add_experience(xp, memberID, timestampUpdated=common.timestamp_convert(now))
-            await add_passive_hours(memberID, passiveHours)
-
-        if timestampLastUpdate != 0:
-            datetimeLastUpdate = common.timestamp_convert(timestampLastUpdate)
-            await update_xp_and_timestamp_updated(memberID, now, datetimeLastUpdate)
-        else:
-            datetimeJoined = common.timestamp_convert(common.database.get(
-                [("memberID", memberID), ("timestampJoined", "")])[0][0])
-            await update_xp_and_timestamp_updated(memberID, now, datetimeJoined)
+async def remove_reaction_count(member_id):
+    reactions = common.database.get([("memberID", member_id), ("reactions", '')], dbTable="leveling")[0][0]
+    common.database.update([("memberID", member_id), ("reactions", reactions - 1)], dbTable="leveling")
 
 
-async def update_voice_xp(author_id=None):
-    async def add_voice_xp(author_id):
-        addXPVoice = common.database.get([("memberID", author_id), ("addXPVoice", '')], dbTable="leveling")[0][0]
-        if addXPVoice:
-            now = datetime.now()
-            datetimeLastVoice = common.timestamp_convert(
-                common.database.get([("memberID", author_id), ("timestampLastVoice", "")],
-                                    dbTable="leveling")[0][0])
-            common.database.update([("memberID", author_id), ("timestampLastVoice", common.timestamp_convert(now))],
-                                   dbTable="leveling")
-            voiceMinutes = common.time_delta_to_minutes(now - datetimeLastVoice)
-            xp = voiceMinutes * common.voice_xp
-            await add_experience(xp, author_id)
-            await add_voice_minutes(author_id, voiceMinutes)
+async def add_experience(xp, member_id, timestamp_update=None, in_server=True):
+    if in_server:
+        xp = common.round_off(xp)
+        old_experience = common.database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
+        common.database.update([("memberID", member_id), ("experience", xp + old_experience)], dbTable='leveling')
+    if timestamp_update:
+        common.database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')
 
-    if author_id:
-        await add_voice_xp(author_id)
+
+async def remove_experience(xp, member_id, timestamp_update=None, in_server=True):
+    if in_server:
+        xp = common.round_off(xp)
+        old_experience = common.database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
+        common.database.update([("memberID", member_id), ("experience", old_experience - xp)], dbTable='leveling')
+    if timestamp_update:
+        common.database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')
+
+
+async def update_passive_xp(member_id):
+    ts = common.database.get([("memberID", member_id), ("timestampLastUpdate", '')], dbTable="leveling")[0][0]
+    if ts > 0:
+        dt = common.timestamp_convert(ts)
     else:
-        memberID_list = common.database.get([('', ''), ("memberID", '')])
-        for member_tuple in memberID_list:
-            memberID = member_tuple[0]
-            await add_voice_xp(memberID)
+        dt = common.timestamp_convert(common.database.get([("memberID", member_id), ("timestampJoined", "")])[0][0])
+    now = datetime.now()
+    passive_hours = common.time_delta_to_hours(now - dt)
+    xp = passive_hours * common.passive_xp
+    await add_experience(xp, member_id, timestamp_update=common.timestamp_convert(now))
+    await add_passive_hours(member_id, passive_hours)
 
 
-async def check_add_xp():
-    memberIDList = common.database.get([('', ''), ("memberID", '')])
-    addXPMemberID = []
-    for member_tuple in memberIDList:
-        memberID = member_tuple[0]
-        add_xp = common.database.get([("memberID", memberID), ("addXPVoice", '')], dbTable="leveling")[0][0]
-        if add_xp:
-            addXPMemberID.append(memberID)
-    return addXPMemberID
+async def update_voice(member_id):
+    xp_mult = common.database.get([("memberID", member_id), ("xpMult", '')], dbTable="leveling")[0][0]
+    if xp_mult:
+        # update last voice timestamp and add xp and stats
+        dt_last_voice = common.timestamp_convert(
+            common.database.get([("memberID", member_id), ("timestampLastVoice", '')], dbTable="leveling")[0][0])
+        now = datetime.now()
+        common.database.update([("memberID", member_id), ("timestampLastVoice", now.timestamp())],
+                               dbTable="leveling")
+        minutes = common.time_delta_to_minutes(now - dt_last_voice)
+        xp_gain = common.voice_xp * minutes * xp_mult
+        await add_experience(xp_gain, member_id)
+        await add_voice_minutes(member_id, minutes)
 
 
 class Leveling(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.activeIDs = set()
         self.creatingLeaderboard = False
-        self.update = True
+        self.update = False
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -166,6 +157,7 @@ class Leveling(commands.Cog):
                 status = statusDict[status]
             except KeyError:
                 status = "unknown"
+
             level_card = LevelCard("", author.name, author.discriminator,
                                    currentXP, neededXP, rank, level, status, thumbnail)
             card = io.BytesIO()
@@ -178,6 +170,8 @@ class Leveling(commands.Cog):
         if page < 0:
             page = 0
         stats_list = common.database.get_stats()[page * 10:page * 10 + 10]
+        # Rank, Username, voiceMinutes, messages, reactions, passiveHours, experience, level, memberID
+        # 0,    1,        2,            3,        4,         5,            6,          7,     8
         if stats_list:
             rowData = []
             for stats in stats_list:
@@ -187,12 +181,12 @@ class Leveling(commands.Cog):
                     thumbnail = Image.open(io.BytesIO(avatar))
                 else:
                     thumbnail = Image.open(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\default.png")
-                level = stats[6]
-                XP = stats[5]
+                level = stats[7]
+                XP = stats[6]
                 neededXP = next_level(level + 1) - next_level(level)
                 currentXP = XP - next_level(level)
-                row = (stats[0] - 1, thumbnail, stats[1], nr(stats[2]), nr(stats[3]), nr(stats[4]), nr(XP), nr(level),
-                       currentXP / neededXP)
+                row = (stats[0] - 1, thumbnail, stats[1], nr(stats[2]), nr(stats[3]), nr(stats[4]), nr(stats[5]),
+                       nr(XP), nr(level), currentXP / neededXP)
                 rowData.append(row)
             board_card = Leaderboard(rowData)
             card = io.BytesIO()
@@ -206,38 +200,59 @@ class Leveling(commands.Cog):
     async def on_raw_reaction_add(self, payload):
         if not self.creatingLeaderboard:
             self.creatingLeaderboard = True
-            leaderboardMessageID = common.database.get([('guildID', payload.guild_id), ("leaderboardMessageID", '')], dbTable="memory")[0][0]
-            if payload.message_id == leaderboardMessageID and payload.user_id != common.bot_id:
+            lbMessageID = \
+            common.database.get([('guildID', payload.guild_id), ("leaderboardMessageID", '')], dbTable="memory")[0][0]
+            if payload.message_id == lbMessageID and payload.user_id != common.bot_id:
                 channel = await self.bot.fetch_channel(payload.channel_id)
-                leaderboardMessage = await channel.fetch_message(leaderboardMessageID)
-                leaderboardControls = common.leaderboard_controls
-                page = int(float(leaderboardMessage.attachments[0].filename[0]))
+                lbMessage = await channel.fetch_message(lbMessageID)
+                lb_controls = common.leaderboard_controls
+                page = int(float(lbMessage.attachments[0].filename[0]))
                 lastPage = int(common.database.get([('', ''), ("COUNT(*)", '')], dbTable="leveling")[0][0] / 10)
-                leaderboardDict = {leaderboardControls[0]: 0,
-                                   leaderboardControls[1]: page - 2,
-                                   leaderboardControls[2]: page - 1,
-                                   leaderboardControls[3]: page,
-                                   leaderboardControls[4]: page + 1,
-                                   leaderboardControls[5]: page + 2,
-                                   leaderboardControls[6]: lastPage}
-                newPage = leaderboardDict[payload.emoji.name]
+                lbDict = {lb_controls[0]: 0,
+                          lb_controls[1]: page - 2,
+                          lb_controls[2]: page - 1,
+                          lb_controls[3]: page,
+                          lb_controls[4]: page + 1,
+                          lb_controls[5]: page + 2,
+                          lb_controls[6]: lastPage}
+                newPage = lbDict[payload.emoji.name]
                 card = await self.leaderboard(newPage)
                 if not card:
                     pass
                 else:
                     message = await channel.send(file=discord.File(fp=card, filename=f"{str(newPage)}.png"))
-                    await leaderboardMessage.delete()
-                    common.database.update([('guildID', payload.guild_id), ("leaderboardMessageID", message.id)], dbTable="memory")
+                    await lbMessage.delete()
+                    common.database.update([('guildID', payload.guild_id), ("leaderboardMessageID", message.id)],
+                                           dbTable="memory")
                     for control in common.leaderboard_controls:
                         await message.add_reaction(control)
+            elif not payload.member.bot and payload.guild_id == common.oasis_guild_id:
+                channel = await self.bot.fetch_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                if not message.author.bot:
+                    member_id = message.author.id
+                    await add_reaction_count(member_id)
+                    await add_experience(common.reaction_xp, member_id)
             self.creatingLeaderboard = False
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+        member = common.get_member(self.bot, payload.user_id)
+        if not member.bot and payload.guild_id == common.oasis_guild_id:
+            channel = await self.bot.fetch_channel(payload.channel_id)
+            message = await channel.fetch_message(payload.message_id)
+            if not message.author.bot:
+                member_id = message.author.id
+                await remove_reaction_count(member_id)
+                await remove_experience(common.reaction_xp, member_id)
 
     @commands.Cog.listener()
     async def on_ready(self):
         while self.update:
-            await update_passive_xp()
-            await update_voice_xp()
-            await self.update_level()
+            for memberID in common.database.get_ids():
+                await update_passive_xp(memberID)
+                await update_voice(memberID)
+                await self.update_level(memberID)
             await asyncio.sleep(common.minutes_to_seconds(2))
 
     @commands.command(name="toggle_update", alias=['tu'])
@@ -248,28 +263,62 @@ class Leveling(commands.Cog):
             else:
                 self.update = True
 
-    async def update_level(self, author_id=None):
-        async def level_check(memberID):
-            general_channel = await self.bot.fetch_channel(common.general_channel_id)
-            level = common.database.get([("memberID", memberID), ("level", '')], dbTable="leveling")[0][0]
-            experience = common.database.get([("memberID", memberID), ("experience", '')], dbTable="leveling")[0][0]
-            new_level = level
-            while next_level(level) < experience:
-                level += 1
-            level -= 1
-            if new_level != level:
-                common.database.update([("memberID", memberID), ("level", level)], dbTable="leveling")
-                member = common.get_member(self.bot, memberID)
-                # await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
-                #                            f"{level}!:arrow_double_up:")
+    async def update_level(self, member_id):
+        level = common.database.get([("memberID", member_id), ("level", '')], dbTable="leveling")[0][0]
+        experience = common.database.get([("memberID", member_id), ("experience", '')], dbTable="leveling")[0][0]
+        old_level = level
+        while experience > next_level(level + 1):
+            level += 1
+        if old_level != level:
+            common.database.update([("memberID", member_id), ("level", level)], dbTable="leveling")
+            # if (level < 4) or (level % ceil((5.01443 * (exp(-0.0350659 * level)))) == 0):
+            #     general_channel = await self.bot.fetch_channel(common.general_channel_id)
+            #     member = common.get_member(self.bot, member_id)
+            #     if level <= 50:
+            #         await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
+            #                                    f"{level}!:arrow_double_up:")
+            #     else:
+            #         await general_channel.send(f"Good job @{member.id}:confetti_ball:, you progressed to level "
+            #                                    f"{level}!:arrow_double_up:")
 
-        if not author_id:
-            memberID_list = common.database.get([('', ''), ("memberID", '')])
-            for member_tuple in memberID_list:
-                memberID = member_tuple[0]
-                await level_check(memberID)
+    async def xp_mult_update(self, val, member_id):
+        # 1 case joined member is the 1st member
+        # 2 case joined member is the one who fifth man
+        # 3 case joined member is the sixth man
+        xp_m = common.database.get([("memberID", member_id), ("xpMult", '')], dbTable="leveling")[0][0]
+        if xp_m > 0:
+            await update_voice(member_id)
         else:
-            await level_check(author_id)
+            common.database.update([("memberID", member_id), ("timestampLastVoice", common.timestamp_convert(
+                datetime.now()))], dbTable="leveling")
+        common.database.update([("memberID", member_id), ("xpMult", val)], dbTable="leveling")
+
+        if val > 0:
+            self.activeIDs.add(member_id)
+            if len(self.activeIDs) >= common.num_active_double:
+                for memberID in self.activeIDs:
+                    await update_voice(memberID)
+                    common.database.update([("memberID", memberID), ("xpMult", 2.)], dbTable="leveling")
+        else:
+            self.activeIDs.remove(member_id)
+            if len(self.activeIDs) < common.num_active_double:
+                for memberID in self.activeIDs.copy():
+                    xp_m = common.database.get([("memberID", memberID), ("xpMult", '')], dbTable="leveling")[0][0]
+                    if xp_m > 0:
+                        await update_voice(memberID)
+                    else:
+                        common.database.update(
+                            [("memberID", memberID), ("timestampLastVoice", common.timestamp_convert(
+                                datetime.now()))], dbTable="leveling")
+                    voice = common.get_member(self.bot, memberID).voice
+                    if not voice or not voice.channel or voice.deaf or voice.self_deaf or voice.afk:
+                        xp = 0.
+                        self.activeIDs.remove(memberID)
+                    elif voice.mute or voice.self_mute:
+                        xp = .5
+                    else:
+                        xp = 1.
+                    common.database.update([("memberID", memberID), ("xpMult", xp)], dbTable="leveling")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -278,51 +327,50 @@ class Leveling(commands.Cog):
             before_deaf = before.deaf or before.self_deaf
             after_mute = after.mute or after.self_mute
             after_deaf = after.deaf or after.self_deaf
+
             join = (not before.channel) and after.channel
             leave = before.channel and (not after.channel)
             muted = (not before_mute) and after_mute
-            unmuted = before_mute and (not after_mute)
+            unmute = before_mute and (not after_mute)
             deafened = (not before_deaf) and after_deaf
-            undeafened = before_deaf and (not after_deaf)
+            undeafen = before_deaf and (not after_deaf)
             afk = (not before.afk) and after.afk
             unafk = before.afk and (not after.afk)
-            council_channel = await self.bot.fetch_channel(common.the_council_channel_id)
 
-            if join and (after_mute or after_deaf):
-                # join muted or deafened
-                common.database.update([("memberID", member.id),
-                                        ("timestampLastVoice", common.timestamp_convert(datetime.now()))],
-                                       dbTable="leveling")
-            elif (join and not (after_mute and after_deaf)) or unmuted or undeafened or (
-                    unafk and not (after_mute and after_deaf)):
-                # (join not muted and not deafened) or unmuted or undeafened or (unafk and not muted and not deafened)
-                common.database.update([("memberID", member.id),
-                                        ("timestampLastVoice", common.timestamp_convert(datetime.now()))],
-                                       dbTable="leveling")
-                common.database.update([("memberID", member.id), ("addXPVoice", True)], dbTable="leveling")
-            elif leave or muted or deafened or afk:
-                # leave or mute or deafen or afk
-                await update_voice_xp(member.id)
-                common.database.update([("memberID", member.id), ("addXPVoice", False)], dbTable="leveling")
-                if not (len(await check_add_xp()) > 0):
-                    await council_channel.send(f"All members are not active")
+            """
+            Notes:
+            check if update_voice is properly placed
+            ensure that parameters inside a function that is inside a function are properly labeled
+            """
+            if leave or after.afk or after_deaf:
+                await self.xp_mult_update(0., member.id)
+            elif muted or (join and after_mute) or (undeafen and after_mute) or (unafk and after_mute):
+                await self.xp_mult_update(.5, member.id)
+            elif join or unmute or (unafk and not after_mute):
+                await self.xp_mult_update(1., member.id)
 
-    @commands.command(name="add_xp_members", aliases=["axm"])
-    async def add_xp_members(self, ctx):
-        addXPMemberID = await check_add_xp()
-        for memberID in addXPMemberID:
-            member = common.get_member(self.bot, memberID)
-            await ctx.send(f"{member.name} is active")
-        if not len(addXPMemberID):
+    @commands.command(name="active", aliases=["act"])
+    async def active(self, ctx):
+        if not len(self.activeIDs):
             await ctx.send(f"No member is active")
+        else:
+            for memberID in self.activeIDs:
+                member = common.get_member(self.bot, memberID)
+                xp = common.database.get([("memberID", memberID), ("xpMult", '')], dbTable="leveling")[0][0]
+                await ctx.send(f"{member.name} -> {xp}x")
+
+    @commands.command(name="test", aliases=['t'])
+    async def test(self, ctx):
+        common.database.update([("memberID", common.kou_id), ("xpMult", 0.)], dbTable="leveling")
+        await self.xp_mult_update(1., common.kou_id)
 
     @commands.command(name="spawn_leaderboard", aliases=["sl"])
     async def spawn_leaderboard(self, ctx):
-        achievements_channel = await self.bot.fetch_channel(common.achievements_channel_id)
+        leaderboards_channel = await self.bot.fetch_channel(common.leaderboards_channel_id)
         card = await self.leaderboard(0)
-        message = await achievements_channel.send(file=discord.File(fp=card, filename=f"0.png"))
+        message = await leaderboards_channel.send(file=discord.File(fp=card, filename=f"0.png"))
         common.database.update([('guildID', ctx.guild.id), ("leaderboardMessageID", message.id)], dbTable="memory")
-        for control in common.leaderboard_controls:
+        for control in common.leaderboard_controls[3:]:
             await message.add_reaction(control)
 
 

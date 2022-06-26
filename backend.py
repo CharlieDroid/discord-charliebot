@@ -66,6 +66,10 @@ class DiscordDatabase:
                                 (rowValue,))
         return self.cursor.fetchall()
 
+    def get_ids(self, dbTable="members"):
+        self.cursor.execute(f"SELECT memberID FROM {dbTable}")
+        return [i[0] for i in self.cursor.fetchall()]
+
     def get_rank(self):
         self.cursor.execute(f"SELECT ROW_NUMBER() OVER ("
                             f"ORDER BY experience DESC) "
@@ -74,8 +78,8 @@ class DiscordDatabase:
         return self.cursor.fetchall()
 
     def get_stats(self):
-        self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, messages, "
-                            f"voiceMinutes, passiveHours, experience, level, memberID FROM leveling")
+        self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, voiceMinutes, "
+                            f"messages, reactions, passiveHours, experience, level, memberID FROM leveling")
         return self.cursor.fetchall()
 
     def delete(self, memberID, dbTable="members"):

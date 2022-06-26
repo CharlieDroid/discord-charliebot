@@ -7,6 +7,7 @@ sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 import discord
 import common
 from uno_game import UnoGame, PlayerInstruction, colors, values
+from pickle import dump, load
 
 
 async def disable_components(interaction, content="Your turn has ended"):
@@ -126,9 +127,12 @@ class Uno(commands.Cog):
 
     async def game(self):
         while True:
-            while not self.uno.winner:
+            while True:
+                if self.uno.winner:
+                    print("there is a winner")
+                    break
                 current = self.uno.currentPlayerIndex
-                currentPlayer = self.players[current]
+                # currentPlayer = self.players[current]
                 for i, player in enumerate(self.players):
                     if i != current:
                         await self.challenge_message(index=i)
@@ -137,6 +141,7 @@ class Uno(commands.Cog):
                     instruction, interaction = await self.turn_message(index=current)
                 self.moves.append(instruction.translate())
                 await self.check_turn(self.uno.turn(instruction))
+                await self.uno_save()
                 if self.uno.clockwise != self.clockwise:
                     self.clockwise = not self.clockwise
                     self.players = self.players[::-1]
@@ -150,6 +155,13 @@ class Uno(commands.Cog):
         for player in self.players:
             await player.send(embed=create_win_embed(self.uno, finalWin=True))
         self.__init__(self.bot)
+
+    async def uno_save(self):
+        with open("./uno_game.pkl", 'wb') as f:
+            memberIDs = [player.id for player in self.players]
+            save_dict = {"uno": self.uno, "clockwise": self.clockwise, "players": memberIDs, "seed": self.seed,
+                         "unoStart": self.unoStart, "moves": self.moves}
+            dump(save_dict, f)
 
     async def check_turn(self, turn):
         current = self.uno.currentPlayerIndex
@@ -230,20 +242,20 @@ class Uno(commands.Cog):
                 for player in self.players:
                     await player.send(content=interpret(turn))
 
-    @commands.command()
-    async def test(self, ctx):
-        guild = self.bot.get_guild(common.oasis_guild_id)
-        member = guild.get_member(799843363058221076)
-        member = guild.get_member(319032492059525130)
-        member = guild.get_member(498374117561597972)
-        print(member)
-        print(dir(member))
-        try:
-            message = await member.send("Ohayo!")
-            print(message)
-            print("Message Sent!")
-        except discord.Forbidden:
-            print("Forbidden")
+    # @commands.command()
+    # async def test(self, ctx):
+    #     guild = self.bot.get_guild(common.oasis_guild_id)
+    #     member = guild.get_member(799843363058221076)
+    #     member = guild.get_member(319032492059525130)
+    #     member = guild.get_member(498374117561597972)
+    #     print(member)
+    #     print(dir(member))
+    #     try:
+    #         message = await member.send("Ohayo!")
+    #         print(message)
+    #         print("Message Sent!")
+    #     except discord.Forbidden:
+    #         print("Forbidden")
         # self.players = [ctx.author, ctx.author]
         # self.uno = UnoGame(["Player 1", "Player 2"], "")
         # self.unoStart = True
@@ -273,52 +285,18 @@ class Uno(commands.Cog):
         await ctx.send(f"The new seed is `{self.seed}`")
 
     @commands.command()
-    async def uno_load(self, ctx, moves=None, seed=None, players=None, winningPoints=None):
-        if ctx.author.id in common.the_council_id:
-            if not moves and seed:
-                moves = self.moves
-                seed = self.seed
-                players = [player.id for player in self.players]
-                winningPoints = self.uno.winningPoints
-                await ctx.send(f"Moves: ```python\n{self.moves}\n```\nSeed: ```python\n{self.seed}\n```")
-            else:
-                moves = moves[2:-2].split("', '")
-                seed = seed
-                players = players.split()
-                if winningPoints:
-                    winningPoints = int(winningPoints)
-
+    async def uno_load(self, ctx):
+        with open("./uno_game.pkl", 'rb') as f:
+            save_dict = load(f)
             self.__init__(self.bot)
-            self.seed = seed
-            self.unoStart = True
+            self.uno = save_dict["uno"]
+            self.clockwise = save_dict["clockwise"]
+            players = save_dict["players"]
             self.players = [common.get_member(self.bot, memberID) for memberID in players]
-            self.uno = UnoGame([player.name for player in self.players], self.seed, winningPoints=winningPoints)
-            self.uno.start_game()
-            types = PlayerInstruction('y').types
-            typesFlipped = {y: x for x, y in types.items()}
-            colorsFlipped = {y: x for x, y in colors.items()}
-            valuesFlipped = {y: x for x, y in values.items()}
-            for move in moves:
-                instruction = []
-                if move == "draw card":
-                    instruction.append(typesFlipped[move])
-                else:
-                    for text in move.split():
-                        if text in typesFlipped:
-                            instruction.append(typesFlipped[text])
-                        elif text in colorsFlipped:
-                            instruction.append(colorsFlipped[text])
-                        elif text in valuesFlipped:
-                            instruction.append(valuesFlipped[text])
-                instruction = PlayerInstruction(' '.join(instruction))
-                if not self.uno.winner:
-                    self.uno.turn(instruction)
-                else:
-                    self.uno.new_game()
-                    self.uno.turn(instruction)
+            self.seed = save_dict["seed"]
+            self.unoStart = save_dict["unoStart"]
+            self.moves = save_dict["moves"]
             await self.game()
-        elif ctx.author.id in common.the_council_id:
-            await ctx.send(f"Moves: ```python\n{self.moves}\n```\nSeed: ```python\n{self.seed}\n```")
 
     async def challenge_message(self, index):
         components = [Button(label="challenge", style=ButtonStyle.red, custom_id="cs")]
