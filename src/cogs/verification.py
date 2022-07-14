@@ -4,7 +4,7 @@ Don't use fetch_guild bro
 import sys
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
-import common
+from src.app import common
 import discord
 from discord.ext import commands
 from datetime import datetime
@@ -94,13 +94,14 @@ class Verification(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        memberID_list = common.database.get([('', ''), ('memberID', '')])
-        for member_tuple in memberID_list:
-            memberID = member_tuple[0]
-            inServer = common.database.get([("memberID", memberID), ("inServer", '')])[0][0]
-            if inServer:
-                member = common.get_member(self.bot, memberID)
-                common.database.update([['memberID', memberID], ['memberUsername', member.name]])
+        for memberID in common.database.get_ids():
+            member = common.get_member(self.bot, memberID)
+            if member is None:
+                common.database.update([("memberID", memberID), ("inServer", False)])
+            else:
+                common.database.update([("memberID", memberID), ("memberUsername", member.name)])
+                common.database.update([("memberID", memberID), ("inServer", True)])
+        print("Member Usernames updated!")
 
     @commands.command(name='add_database', aliases=['ad'])
     async def add_to_database(self, ctx, *message):

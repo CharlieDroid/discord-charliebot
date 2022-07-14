@@ -9,7 +9,7 @@ class DiscordDatabase:
 
     def __init__(self):
         self.connection = sqlite3.connect(
-            r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\discordOasisData.db")
+            r"/data/discordOasisData.db")
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE IF NOT EXISTS members ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"
@@ -66,20 +66,23 @@ class DiscordDatabase:
                                 (rowValue,))
         return self.cursor.fetchall()
 
+    def get_actives(self):
+        self.cursor.execute(f"SELECT memberID FROM leveling WHERE xpMult > 0")
+        return [i[0] for i in self.cursor.fetchall()]
+
+    def get_count(self):
+        self.cursor.execute(f"SELECT COUNT(*) FROM leveling WHERE memberID IN "
+                            f"(SELECT memberID FROM members WHERE inServer = 1)")
+        return self.cursor.fetchall()[0][0]
+
     def get_ids(self, dbTable="members"):
         self.cursor.execute(f"SELECT memberID FROM {dbTable}")
         return [i[0] for i in self.cursor.fetchall()]
 
-    def get_rank(self):
-        self.cursor.execute(f"SELECT ROW_NUMBER() OVER ("
-                            f"ORDER BY experience DESC) "
-                            f"RowNum, memberID, experience "
-                            f"FROM leveling")
-        return self.cursor.fetchall()
-
     def get_stats(self):
         self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, voiceMinutes, "
-                            f"messages, reactions, passiveHours, experience, level, memberID FROM leveling")
+                            f"messages, reactions, passiveHours, experience, level, memberID FROM leveling "
+                            f"WHERE memberID IN (SELECT memberID FROM members WHERE inServer = 1)")
         return self.cursor.fetchall()
 
     def delete(self, memberID, dbTable="members"):

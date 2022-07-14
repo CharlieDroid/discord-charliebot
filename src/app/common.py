@@ -9,8 +9,8 @@ the_council_id = [owner_id, kou_id]
 oasis_guild_id = 811395891122012180
 skewl_guild_id = 498402270472306689
 welcome_channel_id = 811395892338622504
-general_channel_id = 811395892338622507  # the council id for now to test
-leaderboards_channel_id = 881400374085443614
+general_channel_id = 811395892338622507
+leaderboards_channel_id = 815501027381870603
 the_council_channel_id = 815501027381870603
 welcome_message_id = 814157339950841876
 nsfw_channel_id = 811395892338622510
@@ -25,7 +25,7 @@ unknown_role_id = 814155609158713414
 all_roles = [member_role_id, mod_role_id, admin_role_id, based_zeus_role_id, dj_role_id]
 
 temporary_duration = 3
-counter_count = 3
+counter_count = 6
 mute_violation_count = 3
 mute_violation_time = 30
 kick_violation_count = 8
@@ -36,18 +36,12 @@ threshold_count = 20
 
 bot_prefixes = ('!', '~', '-', '_', '.', 'ch!', 'pls', 'p!')
 num_active_double = 5
-normal_message_xp = 150
-reaction_xp = 200
+normal_message_xp = 200
+reaction_xp = 400
 bot_message_xp = 300
 voice_xp = 500  # multiplied with the minutes
-passive_xp = 30  # multiplied with hours
-leaderboard_controls = ["⏮️",
-                        "⏪",
-                        "◀️",
-                        "🔄",
-                        "▶️",
-                        "⏩",
-                        "⏭️"]
+passive_xp = 25  # multiplied with hours
+leaderboard_controls = ["⏮️", "⏪", "◀️", "🔄", "▶️", "⏩", "⏭️"]
 
 profanity = [r"https://c.tenor.com/7R0cugwI7k0AAAAC/watch-your-mouth-watch-your-profanity.gif",
              r"https://c.tenor.com/9z0inDzGansAAAAC/tone-watch-your-mouth.gif",
@@ -58,6 +52,7 @@ spamming = [r"https://c.tenor.com/kRKsQcSUmIYAAAAC/no-spam-spam-go-away.gif",
             r"https://c.tenor.com/mZZoOtDcouoAAAAM/stop-it-get-some-help.gif"]
 bad_words = ("fck", "fcking")
 good_words = ["God", "god"]
+default_pfp_path = r"/data/default.png"
 database = DiscordDatabase()
 
 
@@ -134,23 +129,9 @@ def get_member(bot, memberNameID):
 
 def number_readability(num):
     suffixes = ('K', 'M', 'B', 'T', 'q', 'Q', 's', 'S')
-    num = f"{num:e}"
-    value = float(num[:-4])
-    power = int(num[-2:])
-    if power < 4:
-        return str(round(value * (10 ** power), 0))[:-2]
+    power = int(f"{num:e}"[-2:])
+    if power <= 3:
+        return str(round(float(num), 0))[:-2]
     else:
         suffix_loc = power // 3
-        return str(round(value * (10 ** (power - (3 * suffix_loc))), 1)) + suffixes[suffix_loc - 1]
-    # numberName = {3: 'K', 6: 'M', 9: 'B', 12: 'T', 15: 'q', 18: 'Q', 21: 's', 24: 'S'}
-    # if num > 9_999_999:
-    #     num /= 1e6
-    #     num = str(round(num, 1)) + 'M'
-    # elif num > 9_999:
-    #     num /= 1e3
-    #     num = str(round(num, 1)) + 'K'
-    # elif type(num) == float:
-    #     num = str(round(num, 0))[:-2]
-    # else:
-    #     num = str(num)
-    # return num
+        return str(round(num / float(f"1e{3 * suffix_loc}"), 1)) + suffixes[suffix_loc - 1]

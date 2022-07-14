@@ -1,29 +1,26 @@
 import sys
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
-import common
+from src.app import common
 import asyncio
 import io
 import discord
 from PIL import Image
-from level_card import LevelCard
+from src.app.level_card import LevelCard
 from datetime import datetime
 from discord.ext import commands
-from leaderboard import Leaderboard
-from common import number_readability as nr
+from src.app.leaderboard import Leaderboard
+from src.app.common import number_readability as nr
+from discord_components import Button
 from math import ceil, exp
 
 """
-Add inServer updater
-Update member username every on ready
-Check get_rank and get_stats if they can be combined and simplified
-Need fix for voice channel object
-benchmark the two code blocks in common.number_readability
+Need fix for voice channel object (last thing to do, needs update)
 """
 
 
 def next_level(level):
-    return 50. * level * level * level
+    return 123. * level * level * level
 
 
 async def add_message_count(member_id):
@@ -77,16 +74,18 @@ async def remove_experience(xp, member_id, timestamp_update=None, in_server=True
 
 
 async def update_passive_xp(member_id):
-    ts = common.database.get([("memberID", member_id), ("timestampLastUpdate", '')], dbTable="leveling")[0][0]
-    if ts > 0:
-        dt = common.timestamp_convert(ts)
-    else:
-        dt = common.timestamp_convert(common.database.get([("memberID", member_id), ("timestampJoined", "")])[0][0])
-    now = datetime.now()
-    passive_hours = common.time_delta_to_hours(now - dt)
-    xp = passive_hours * common.passive_xp
-    await add_experience(xp, member_id, timestamp_update=common.timestamp_convert(now))
-    await add_passive_hours(member_id, passive_hours)
+    in_server = common.database.get([("memberID", member_id), ("inServer", '')])[0][0]
+    if in_server:
+        ts = common.database.get([("memberID", member_id), ("timestampLastUpdate", '')], dbTable="leveling")[0][0]
+        if ts > 0:
+            dt = common.timestamp_convert(ts)
+        else:
+            dt = common.timestamp_convert(common.database.get([("memberID", member_id), ("timestampJoined", "")])[0][0])
+        now = datetime.now()
+        passive_hours = common.time_delta_to_hours(now - dt)
+        xp = passive_hours * common.passive_xp
+        await add_experience(xp, member_id, timestamp_update=common.timestamp_convert(now))
+        await add_passive_hours(member_id, passive_hours)
 
 
 async def update_voice(member_id):
@@ -110,7 +109,7 @@ class Leveling(commands.Cog):
         self.bot = bot
         self.activeIDs = set()
         self.creatingLeaderboard = False
-        self.update = False
+        self.update = True
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -139,22 +138,20 @@ class Leveling(commands.Cog):
             await self.update_level(author.id)
             avatar = await author.avatar_url_as(format="png", static_format="png").read()
             thumbnail = Image.open(io.BytesIO(avatar))
-            author_id = author.id
-            rank_memberID_experience_list = common.database.get_rank()
-            currentXP, rank = 0, 0
-            for rank_memberID_experience in rank_memberID_experience_list:
-                if rank_memberID_experience[1] == author_id:
-                    currentXP = rank_memberID_experience[2]
-                    rank = rank_memberID_experience[0]
-            level = common.database.get([("memberID", author_id), ("level", '')], dbTable="leveling")[0][0]
+            currentXP, rank, level = 0, 0, 0
+            for stats in common.database.get_stats():
+                if stats[-1] == author.id:
+                    currentXP = stats[-3]
+                    level = stats[-2]
+                    rank = stats[0]
+                    break
             neededXP = next_level(level + 1) - next_level(level)
             currentXP = currentXP - next_level(level)
-            status = author.status
             statusDict = {discord.Status.online: "online",
                           discord.Status.idle: "idle",
                           discord.Status.dnd: "dnd"}
             try:
-                status = statusDict[status]
+                status = statusDict[author.status]
             except KeyError:
                 status = "unknown"
 
@@ -166,74 +163,75 @@ class Leveling(commands.Cog):
             await ctx.send(file=discord.File(fp=card, filename=f"{author.name}.png"))
 
     async def leaderboard(self, page):
-        page = int(page)
-        if page < 0:
-            page = 0
-        stats_list = common.database.get_stats()[page * 10:page * 10 + 10]
         # Rank, Username, voiceMinutes, messages, reactions, passiveHours, experience, level, memberID
         # 0,    1,        2,            3,        4,         5,            6,          7,     8
-        if stats_list:
-            rowData = []
-            for stats in stats_list:
-                avatar = common.get_member(self.bot, stats[-1])
-                if avatar:
-                    avatar = await avatar.avatar_url_as(format="png", static_format="png").read()
-                    thumbnail = Image.open(io.BytesIO(avatar))
-                else:
-                    thumbnail = Image.open(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\default.png")
-                level = stats[7]
-                XP = stats[6]
-                neededXP = next_level(level + 1) - next_level(level)
-                currentXP = XP - next_level(level)
-                row = (stats[0] - 1, thumbnail, stats[1], nr(stats[2]), nr(stats[3]), nr(stats[4]), nr(stats[5]),
-                       nr(XP), nr(level), currentXP / neededXP)
-                rowData.append(row)
-            board_card = Leaderboard(rowData)
-            card = io.BytesIO()
-            board_card.canvas.save(card, "PNG")
-            card.seek(0)
-        else:
-            card = None
+        rowData = []
+        for stats in common.database.get_stats()[page * 10:page * 10 + 10]:
+            avatar = common.get_member(self.bot, stats[-1])
+            if avatar:
+                avatar = await avatar.avatar_url_as(format="png", static_format="png").read()
+                thumbnail = Image.open(io.BytesIO(avatar))
+            else:
+                thumbnail = Image.open(common.default_pfp_path)
+            level = stats[7]
+            XP = stats[6]
+            neededXP = next_level(level + 1) - next_level(level)
+            currentXP = XP - next_level(level)
+            row = (stats[0] - 1, thumbnail, stats[1], nr(stats[2]), nr(stats[3]), nr(stats[4]), nr(stats[5]),
+                   nr(XP), nr(level), currentXP / neededXP)
+            rowData.append(row)
+        card = io.BytesIO()
+        Leaderboard(rowData).canvas.save(card, "PNG")
+        card.seek(0)
         return card
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
+    async def on_button_click(self, interaction):
         if not self.creatingLeaderboard:
             self.creatingLeaderboard = True
-            lbMessageID = \
-            common.database.get([('guildID', payload.guild_id), ("leaderboardMessageID", '')], dbTable="memory")[0][0]
-            if payload.message_id == lbMessageID and payload.user_id != common.bot_id:
-                channel = await self.bot.fetch_channel(payload.channel_id)
-                lbMessage = await channel.fetch_message(lbMessageID)
-                lb_controls = common.leaderboard_controls
-                page = int(float(lbMessage.attachments[0].filename[0]))
-                lastPage = int(common.database.get([('', ''), ("COUNT(*)", '')], dbTable="leveling")[0][0] / 10)
-                lbDict = {lb_controls[0]: 0,
-                          lb_controls[1]: page - 2,
-                          lb_controls[2]: page - 1,
-                          lb_controls[3]: page,
-                          lb_controls[4]: page + 1,
-                          lb_controls[5]: page + 2,
-                          lb_controls[6]: lastPage}
-                newPage = lbDict[payload.emoji.name]
-                card = await self.leaderboard(newPage)
-                if not card:
-                    pass
+            lbMessageID = common.database.get([('guildID', interaction.guild.id), ("leaderboardMessageID", '')],
+                                              dbTable="memory")[0][0]
+            if interaction.message.id == lbMessageID and interaction.custom_id.startswith("leader"):
+                await interaction.respond(content="Please wait...")
+                page = int(interaction.message.attachments[0].filename[0])
+                total_count = common.database.get_count()
+                if (total_count % 10) == 0:
+                    last_page = (total_count // 10) - 1
                 else:
-                    message = await channel.send(file=discord.File(fp=card, filename=f"{str(newPage)}.png"))
-                    await lbMessage.delete()
-                    common.database.update([('guildID', payload.guild_id), ("leaderboardMessageID", message.id)],
-                                           dbTable="memory")
-                    for control in common.leaderboard_controls:
-                        await message.add_reaction(control)
-            elif not payload.member.bot and payload.guild_id == common.oasis_guild_id:
-                channel = await self.bot.fetch_channel(payload.channel_id)
-                message = await channel.fetch_message(payload.message_id)
-                if not message.author.bot:
-                    member_id = message.author.id
-                    await add_reaction_count(member_id)
-                    await add_experience(common.reaction_xp, member_id)
+                    last_page = total_count // 10
+                control = int(interaction.custom_id[-1])
+                control_values = (-last_page, -2, -1, 0, 1, 2, last_page)
+                new_page = page + control_values[control]
+                if new_page < 0:
+                    new_page = 0
+                elif new_page > last_page:
+                    new_page = last_page
+                card = await self.leaderboard(new_page)
+                if new_page == 0:
+                    components = [[Button(emoji=label, custom_id=f"leader{i + 3}") for
+                                   i, label in enumerate(common.leaderboard_controls[3:])]]
+                elif new_page == last_page:
+                    components = [[Button(emoji=label, custom_id=f"leader{i}") for
+                                   i, label in enumerate(common.leaderboard_controls[:4])]]
+                else:
+                    components = [[Button(emoji=label, custom_id=f"leader{i + 1}") for
+                                   i, label in enumerate(common.leaderboard_controls[1:-1])]]
+                message = await interaction.channel.send(file=discord.File(fp=card, filename=f"{new_page}.png"),
+                                                         components=components)
+                await interaction.message.delete()
+                common.database.update([("guildID", interaction.guild.id), ("leaderboardMessageID", message.id)],
+                                       dbTable="memory")
             self.creatingLeaderboard = False
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        if not payload.member.bot and payload.guild_id == common.oasis_guild_id:
+            channel = self.bot.get_channel(payload.channel_id)
+            message = await channel.fetch_message(payload.message_id)
+            if not message.author.bot:
+                member_id = message.author.id
+                await add_reaction_count(member_id)
+                await add_experience(common.reaction_xp, member_id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
@@ -248,6 +246,16 @@ class Leveling(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        for memberID in common.database.get_actives():
+            await self.xp_mult_update(0., memberID)
+        guild = self.bot.get_guild(common.oasis_guild_id)
+        for voice_channel in guild.voice_channels:
+            for member in voice_channel.members:
+                voice = member.voice
+                if voice.channel and (not voice.deaf or not voice.self_deaf or not voice.afk):
+                    await self.xp_mult_update(1., member.id)
+                elif voice.channel and (voice.mute or voice.self_mute):
+                    await self.xp_mult_update(.5, member.id)
         while self.update:
             for memberID in common.database.get_ids():
                 await update_passive_xp(memberID)
@@ -271,15 +279,15 @@ class Leveling(commands.Cog):
             level += 1
         if old_level != level:
             common.database.update([("memberID", member_id), ("level", level)], dbTable="leveling")
-            # if (level < 4) or (level % ceil((5.01443 * (exp(-0.0350659 * level)))) == 0):
-            #     general_channel = await self.bot.fetch_channel(common.general_channel_id)
-            #     member = common.get_member(self.bot, member_id)
-            #     if level <= 50:
-            #         await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
-            #                                    f"{level}!:arrow_double_up:")
-            #     else:
-            #         await general_channel.send(f"Good job @{member.id}:confetti_ball:, you progressed to level "
-            #                                    f"{level}!:arrow_double_up:")
+            if (level < 4) or (level % ceil((5.01443 * (exp(-0.0350659 * level)))) == 0):
+                general_channel = await self.bot.fetch_channel(common.general_channel_id)
+                member = common.get_member(self.bot, member_id)
+                if level <= 50:
+                    await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
+                                               f"{level}!:arrow_double_up:")
+                else:
+                    await general_channel.send(f"Good job @{member.id}:confetti_ball:, you progressed to level "
+                                               f"{level}!:arrow_double_up:")
 
     async def xp_mult_update(self, val, member_id):
         # 1 case joined member is the 1st member
@@ -351,27 +359,30 @@ class Leveling(commands.Cog):
 
     @commands.command(name="active", aliases=["act"])
     async def active(self, ctx):
-        if not len(self.activeIDs):
+        if not len(self.activeIDs) and not len(common.database.get_actives()):
             await ctx.send(f"No member is active")
         else:
-            for memberID in self.activeIDs:
+            for memberID in common.database.get_actives():
                 member = common.get_member(self.bot, memberID)
                 xp = common.database.get([("memberID", memberID), ("xpMult", '')], dbTable="leveling")[0][0]
                 await ctx.send(f"{member.name} -> {xp}x")
 
     @commands.command(name="test", aliases=['t'])
     async def test(self, ctx):
-        common.database.update([("memberID", common.kou_id), ("xpMult", 0.)], dbTable="leveling")
-        await self.xp_mult_update(1., common.kou_id)
+        print("Hello World")
+        channel = self.bot.get_channel(969398492650930256)
+        await channel.send("hello world")
 
     @commands.command(name="spawn_leaderboard", aliases=["sl"])
     async def spawn_leaderboard(self, ctx):
-        leaderboards_channel = await self.bot.fetch_channel(common.leaderboards_channel_id)
-        card = await self.leaderboard(0)
-        message = await leaderboards_channel.send(file=discord.File(fp=card, filename=f"0.png"))
-        common.database.update([('guildID', ctx.guild.id), ("leaderboardMessageID", message.id)], dbTable="memory")
-        for control in common.leaderboard_controls[3:]:
-            await message.add_reaction(control)
+        if ctx.author.id in common.the_council_id:
+            leaderboards_channel = await self.bot.fetch_channel(common.leaderboards_channel_id)
+            card = await self.leaderboard(0)
+            components = [[Button(emoji=label, custom_id=f"leader{i + 3}") for
+                           i, label in enumerate(common.leaderboard_controls[3:])]]
+            message = await leaderboards_channel.send(file=discord.File(fp=card, filename="0.png"),
+                                                      components=components)
+            common.database.update([('guildID', ctx.guild.id), ("leaderboardMessageID", message.id)], dbTable="memory")
 
 
 def setup(bot):

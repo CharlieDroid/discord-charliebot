@@ -4,8 +4,12 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import sys
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
-import common
-from discord_components import DiscordComponents
+from src.app import common
+
+"""
+move files outside src to inside it
+order of checking will be leveling, verification, moderation, features, uno
+"""
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
@@ -14,7 +18,6 @@ intents.members = True
 intents.presences = True
 bot = commands.Bot(command_prefix='~',
                    intents=intents)
-DiscordComponents(bot)
 
 
 async def check_user_id(ctx):

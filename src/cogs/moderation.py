@@ -1,7 +1,7 @@
 import sys
 
 sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
-import common
+from src.app import common
 import discord
 import asyncio
 from better_profanity import profanity
