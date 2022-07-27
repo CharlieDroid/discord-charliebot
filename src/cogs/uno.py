@@ -1,9 +1,5 @@
 from discord.ext import commands
-import sys
 import asyncio
-from discord_components import Button, Select, SelectOption, ButtonStyle
-
-sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 import discord
 from src.app import common
 from src.app.uno_game import UnoGame, PlayerInstruction, colors, values

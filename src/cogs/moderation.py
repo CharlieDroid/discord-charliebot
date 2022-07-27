@@ -1,6 +1,3 @@
-import sys
-
-sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 from src.app import common
 import discord
 import asyncio

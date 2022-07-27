@@ -8,8 +8,7 @@ def row_column(row_column_list):
 class DiscordDatabase:
 
     def __init__(self):
-        self.connection = sqlite3.connect(
-            r"/data/discordOasisData.db")
+        self.connection = sqlite3.connect(r"../data/discordOasisData.db")
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE IF NOT EXISTS members ("
                             "memberID INTEGER PRIMARY KEY UNIQUE,"

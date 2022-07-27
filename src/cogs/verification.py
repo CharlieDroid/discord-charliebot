@@ -1,9 +1,6 @@
 """
 Don't use fetch_guild bro
 """
-import sys
-
-sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 from src.app import common
 import discord
 from discord.ext import commands

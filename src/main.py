@@ -1,23 +1,20 @@
 import discord
-import os
 from discord.ext import commands
-from dotenv import load_dotenv
+import os
 import sys
-sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
+from datetime import datetime
+from dotenv import load_dotenv
 from src.app import common
+from src.cogs.leveling import update_voice
 
 """
-move files outside src to inside it
-order of checking will be leveling, verification, moderation, features, uno
+order of checking will be verification, moderation, features, uno
 """
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
-intents = discord.Intents.default()
-intents.members = True
-intents.presences = True
-bot = commands.Bot(command_prefix='~',
-                   intents=intents)
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix='~', intents=intents)
 
 
 async def check_user_id(ctx):
@@ -34,8 +31,8 @@ async def reload(ctx, extension):
         try:
             bot.reload_extension(cog_extension)
             await ctx.send(f"{cog_extension} was reloaded")
-        except discord.ext.commands.errors.ExtensionNotLoaded:
-            await ctx.send(f"{cog_extension} was not loaded")
+        except discord.ExtensionNotLoaded:
+            await ctx.send(f"{cog_extension} was not reloaded")
 
 
 @bot.command()
@@ -54,6 +51,18 @@ async def unload(ctx, extension):
         await ctx.send(f"{cog_extension} was unloaded")
 
 
+@bot.command()
+async def shutdown(ctx):
+    if ctx.author.id == common.owner_id:
+        await ctx.send("Shutting down...")
+        print("Shutting down...")
+        for memberID in common.database.get_actives():
+            await update_voice(memberID)
+            common.database.update([("memberID", memberID), ("xpMult", 0)], dbTable="leveling")
+        await bot.close()
+        sys.exit()
+
+
 @bot.event
 async def on_ready():
     activity = discord.Activity(name="Detroit: Become Human", type=5)
@@ -63,8 +72,14 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"{guild.name} (id: {guild.id})")
 
+
 for filename in os.listdir('./cogs'):
     if filename.endswith('.py'):
-        bot.load_extension(f'cogs.{filename[:-3]}')
+        cog_extension = f"cogs.{filename[:-3]}"
+        try:
+            bot.load_extension(cog_extension)
+            print(f"{cog_extension} loaded")
+        except Exception as err:
+            print(err)
 
 bot.run(TOKEN)

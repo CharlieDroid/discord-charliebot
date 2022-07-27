@@ -2,11 +2,8 @@ from discord.ext import commands
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import sys
 import discord
 import random
-
-sys.path.insert(0, r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0")
 from random import randint
 from src.app import common
 
@@ -59,14 +56,14 @@ class Features(commands.Cog):
 
     @commands.command(name="study", aliases=["st"])
     async def study(self, ctx, num=1):
-        exam = pd.read_csv(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\midterm exam.csv")
-        num_rows = exam.shape[0]
-        rand_rows = random.sample(range(num_rows + 1), num)
-        rows = exam.iloc[rand_rows].drop("Your Answer", axis=1).values.tolist()
-        messages = []
-        for row in rows:
-            messages.append(f"{row[0]}. {row[1]} :arrow_forward:  ||{row[2]}||")
-        await ctx.send('\n'.join(messages))
+        await ctx.send("No code here")
+        # num_rows = exam.shape[0]
+        # rand_rows = random.sample(range(num_rows + 1), num)
+        # rows = exam.iloc[rand_rows].drop("Your Answer", axis=1).values.tolist()
+        # messages = []
+        # for row in rows:
+        #     messages.append(f"{row[0]}. {row[1]} :arrow_forward:  ||{row[2]}||")
+        # await ctx.send('\n'.join(messages))
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):

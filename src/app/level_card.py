@@ -1,5 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
-from common import number_readability
+from discord import Status
 
 
 def crop_to_square(im):
@@ -13,7 +13,7 @@ def crop_to_square(im):
 
 class LevelCard:
 
-    def __init__(self, imageName, username, discriminator, currentXP, neededXP, rank, level, status, imageObject=None):
+    def __init__(self, username, discriminator, currentXP, neededXP, ratio, rank, level, status, imageObject=None):
         # margin and font sizes
         self.margin, self.textMargin = 20, 10
         self.smallFontSize, self.mediumFontSize = 30, 35
@@ -32,21 +32,15 @@ class LevelCard:
         self.nightGreyColor = (44, 54, 64)
         self.pastelOrangeColor = (255, 179, 71)
         self.pastelWhite = (250, 248, 246)
-        statusDict = {"online": (61, 168, 93),
-                      "idle": (244, 172, 40),
-                      "dnd": (232, 68, 73),
-                      "unknown": (118, 126, 141)}
-        self.statusColor = statusDict[status]
+        statusDict = {Status.online: (61, 168, 93),
+                      Status.idle: (244, 172, 40),
+                      Status.dnd: (232, 68, 73)}
+        self.statusColor = statusDict.get(status)
+        if not self.statusColor:
+            self.statusColor = (118, 126, 141)
         self.decoColor = self.pastelOrangeColor
         self.textColor = self.pastelWhite
-
-        # name of image for thumbnail and what to name it when saving
-        if not imageObject:
-            self.imageName = imageName
-            self.saveImageName = self.imageName[:-4] + ".png"
-            self.imageObject = Image.open(self.imageName).convert("RGBA")
-        else:
-            self.imageObject = imageObject.convert("RGBA")
+        self.imageObject = imageObject.convert("RGBA")
 
         # font type and different sizes of the font
         self.normalFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica.ttf"
@@ -58,9 +52,9 @@ class LevelCard:
         self.username = username
         self.discriminator = '#' + str(discriminator)
         self.nameDiscriminator = self.username + ' ' + self.discriminator
-        self.barRatio = currentXP / neededXP
-        self.currentXP = number_readability(currentXP)
-        self.neededXP = number_readability(neededXP)
+        self.barRatio = ratio
+        self.currentXP = currentXP
+        self.neededXP = neededXP
         self.textXp = self.currentXP + " / " + self.neededXP + " XP"
         self.rank = '#' + str(rank)
         self.level = str(level)
@@ -218,6 +212,3 @@ class LevelCard:
                            self.margin + self.thumbnailSize[0] - self.statusBorderSize,
                            self.margin + self.thumbnailSize[1] - self.statusBorderSize),
                           fill=self.statusColor)
-
-    def save(self):
-        self.canvas.save(self.saveImageName)

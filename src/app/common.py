@@ -1,4 +1,4 @@
-from backend import DiscordDatabase
+from src.app.backend import DiscordDatabase
 from datetime import datetime
 
 check_emoji = '✅'
@@ -10,7 +10,7 @@ oasis_guild_id = 811395891122012180
 skewl_guild_id = 498402270472306689
 welcome_channel_id = 811395892338622504
 general_channel_id = 811395892338622507
-leaderboards_channel_id = 815501027381870603
+leaderboards_channel_id = 881400374085443614
 the_council_channel_id = 815501027381870603
 welcome_message_id = 814157339950841876
 nsfw_channel_id = 811395892338622510
@@ -52,7 +52,7 @@ spamming = [r"https://c.tenor.com/kRKsQcSUmIYAAAAC/no-spam-spam-go-away.gif",
             r"https://c.tenor.com/mZZoOtDcouoAAAAM/stop-it-get-some-help.gif"]
 bad_words = ("fck", "fcking")
 good_words = ["God", "god"]
-default_pfp_path = r"/data/default.png"
+default_pfp_path = r"../data/default.png"
 database = DiscordDatabase()
 
 
