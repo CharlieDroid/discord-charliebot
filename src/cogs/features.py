@@ -4,14 +4,33 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import discord
 import random
-from random import randint
-from src.app import common
+import asyncio
+from datetime import datetime
+from random import randint, choice
+from app import common
 
 
 class Features(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.command(name="oasis_alarm", aliases=["oa"])
+    async def oasis_alarm(self, ctx, time, ref):
+        # 7:00 PM 1049667814140690442
+        channel = ctx.channel
+        await ctx.send(f"All connected voice clients in **{channel.name}** will be disconnected at {time} {ref} today.")
+        alarm = datetime.strptime(f"{time} {ref}", "%I:%M %p")
+        now = datetime.strptime(datetime.now().strftime("%I:%M:%S %p"), "%I:%M:%S %p")
+        delta = alarm - now
+        await asyncio.sleep(delta.seconds)
+        channel = ctx.channel
+        for member in channel.members:
+            await member.move_to(None)
+
+    @commands.command(name="flip", aliases=['f'])
+    async def flip(self, ctx):
+        await ctx.send(f"{choice(['Heads', 'Tails'])}")
 
     @commands.command(name="roll", aliases=['r'])
     async def roll(self, ctx, rollRange=2):

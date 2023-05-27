@@ -4,8 +4,8 @@ import os
 import sys
 from datetime import datetime
 from dotenv import load_dotenv
-from src.app import common
-from src.cogs.leveling import update_voice
+from app import common
+from cogs.leveling import update_voice
 
 """
 order of checking will be verification, moderation, features, uno

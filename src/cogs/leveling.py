@@ -5,10 +5,10 @@ from discord.ext import commands
 from discord.ui import Button
 from PIL import Image
 from datetime import datetime
-from src.app import common
-from src.app.level_card import LevelCard
-from src.app.leaderboard import Leaderboard
-from src.app.common import number_readability as nr
+from app import common
+from app.level_card import LevelCard
+from app.leaderboard import Leaderboard
+from app.common import number_readability as nr
 from math import ceil, exp
 
 
@@ -194,16 +194,9 @@ class Leveling(commands.Cog):
             leave = before.channel and (not after.channel)
             muted = (not before_mute) and after_mute
             unmute = before_mute and (not after_mute)
-            deafened = (not before_deaf) and after_deaf
             undeafen = before_deaf and (not after_deaf)
-            afk = (not before.afk) and after.afk
             unafk = before.afk and (not after.afk)
 
-            """
-            Notes:
-            check if update_voice is properly placed
-            ensure that parameters inside a function that is inside a function are properly labeled
-            """
             if leave or after.afk or after_deaf:
                 await self.xp_mult_update(0., member.id)
             elif muted or (join and after_mute) or (undeafen and after_mute) or (unafk and after_mute):
@@ -220,16 +213,16 @@ class Leveling(commands.Cog):
             for member in voice_channel.members:
                 if not member.bot:
                     voice = member.voice
-                    if voice.channel and (not voice.deaf or not voice.self_deaf or not voice.afk):
-                        await self.xp_mult_update(1., member.id)
-                    elif voice.channel and (voice.mute or voice.self_mute):
+                    if voice.channel and (voice.mute or voice.self_mute):
                         await self.xp_mult_update(.5, member.id)
+                    elif voice.channel and (not voice.deaf or not voice.self_deaf or not voice.afk):
+                        await self.xp_mult_update(1., member.id)
         while self.update:
             for memberID in common.database.get_ids():
                 await update_passive_xp(memberID)
                 await update_voice(memberID)
                 await self.update_level(memberID)
-            await asyncio.sleep(common.minutes_to_seconds(2))
+            await asyncio.sleep(60)
 
     async def update_level(self, member_id):
         level = common.database.get([("memberID", member_id), ("level", '')], dbTable="leveling")[0][0]
@@ -305,7 +298,7 @@ class Leveling(commands.Cog):
                                               dbTable="memory")[0][0]
             if interaction.message.id == lbMessageID and interaction.custom_id.startswith("leader"):
                 await interaction.response.send_message(content="Please wait...", ephemeral=True, delete_after=5)
-                page = int(interaction.message.attachments[0].filename[0])
+                page = int(interaction.message.attachments[0].filename[:-4])
                 total_count = common.database.get_count()
                 if (total_count % 10) == 0:
                     last_page = (total_count // 10) - 1
@@ -326,6 +319,9 @@ class Leveling(commands.Cog):
                 common.database.update([("guildID", interaction.guild.id), ("leaderboardMessageID", message.id)],
                                        dbTable="memory")
             self.creatingLeaderboard = False
+        else:
+            await interaction.channel.send(content="The leaderboard is being processed right now :saluting_face:",
+                                           delete_after=5)
 
     @commands.command(name="spawn_leaderboard", aliases=["sl"])
     async def spawn_leaderboard(self, ctx):
@@ -377,9 +373,9 @@ class Leveling(commands.Cog):
             else:
                 self.update = True
 
-    @commands.command(name="test", alias=['t'])
-    async def test(self, ctx):
-        print("hello there")
+    # @commands.command(name="test", alias=['t'])
+    # async def test(self, ctx):
+    #     print("hello there")
         # message_id = common.database.get([("guildID", common.oasis_guild_id), ("leaderboardMessageID", '')],
         #                                  dbTable="memory")[0][0]
         # message = await self.bot.get_channel(common.leaderboards_channel_id).fetch_message(message_id)

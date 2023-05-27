@@ -1,8 +1,8 @@
 from discord.ext import commands
 import asyncio
 import discord
-from src.app import common
-from src.app.uno_game import UnoGame, PlayerInstruction, colors, values
+from app import common
+from app.uno_game import UnoGame, PlayerInstruction, colors, values
 from pickle import dump, load
 
 
