@@ -84,14 +84,14 @@ class Kbye(commands.Cog):
         else:
             await ctx.send("I cannot undo :((")
 
-    @commands.command(name="test")
-    async def test(self, ctx):
-        channel = await self.bot.fetch_channel(1093922720082821210)
-        messageID = common.database.get([('guildID', ctx.guild.id), ("leaderboardMessageID", '')],
-                                        dbTable="memory")[0][0]
-        message = await channel.fetch_message(messageID)
-        content = await channel.fetch_message(1094269955165388931)
-        await message.edit(content=content.content)
+    # @commands.command(name="test")
+    # async def test(self, ctx):
+    #     channel = await self.bot.fetch_channel(1093922720082821210)
+    #     messageID = common.database.get([('guildID', ctx.guild.id), ("leaderboardMessageID", '')],
+    #                                     dbTable="memory")[0][0]
+    #     message = await channel.fetch_message(messageID)
+    #     content = await channel.fetch_message(1094269955165388931)
+    #     await message.edit(content=content.content)
 
 
 def setup(bot):

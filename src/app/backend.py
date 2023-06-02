@@ -31,9 +31,11 @@ class DiscordDatabase:
                             "previousExperience REAL NOT NULL DEFAULT 0,"
                             "timestampLastUpdate REAL NOT NULL DEFAULT 0,"
                             "timestampLastVoice REAL NOT NULL DEFAULT 0,"
+                            "timestampLastStream REAL NOT NULL DEFAULT 0,"
                             "addXPVoice BOOLEAN NOT NULL DEFAULT FALSE,"
                             "messages INTEGER NOT NULL DEFAULT 0,"
                             "voiceMinutes REAL NOT NULL DEFAULT 0,"
+                            "streamMinutes REAL NOT NULL DEFAULT 0,"
                             "passiveHours REAL NOT NULL DEFAULT 0"
                             ")")
         self.cursor.execute("CREATE TABLE IF NOT EXISTS memory ("
@@ -79,8 +81,8 @@ class DiscordDatabase:
         return [i[0] for i in self.cursor.fetchall()]
 
     def get_stats(self):
-        self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, voiceMinutes, "
-                            f"messages, reactions, passiveHours, experience, level, memberID FROM leveling "
+        self.cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY experience DESC) RowNum, memberUsername, streamMinutes,"
+                            f"voiceMinutes, messages, reactions, passiveHours, experience, level, memberID FROM leveling "
                             f"WHERE memberID IN (SELECT memberID FROM members WHERE inServer = 1)")
         return self.cursor.fetchall()
 

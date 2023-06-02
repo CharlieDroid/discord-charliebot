@@ -17,14 +17,24 @@ def next_level(level):
 
 
 async def add_message_count(member_id):
-    messages = common.database.get([("memberID", member_id), ("messages", '')], dbTable="leveling")[0][0]
-    common.database.update([("memberID", member_id), ("messages", messages + 1)], dbTable="leveling")
+    try:
+        messages = common.database.get([("memberID", member_id), ("messages", '')], dbTable="leveling")[0][0]
+        common.database.update([("memberID", member_id), ("messages", messages + 1)], dbTable="leveling")
+    except IndexError:
+        print(f"member_id={member_id}")
 
 
 async def add_voice_minutes(member_id, voice_minutes):
     old_voice_minutes = common.database.get([("memberID", member_id), ("voiceMinutes", '')], dbTable="leveling")[0][0]
     common.database.update(
         [("memberID", member_id), ("voiceMinutes", common.round_off(old_voice_minutes + voice_minutes))],
+        dbTable="leveling")
+
+
+async def add_stream_minutes(member_id, stream_minutes):
+    old_stream_minutes = common.database.get([("memberID", member_id), ("streamMinutes", '')], dbTable="leveling")[0][0]
+    common.database.update(
+        [("memberID", member_id), ("streamMinutes", common.round_off(old_stream_minutes + stream_minutes))],
         dbTable="leveling")
 
 
@@ -94,6 +104,14 @@ async def update_voice(member_id):
         xp_gain = common.voice_xp * minutes * xp_mult
         await add_experience(xp_gain, member_id)
         await add_voice_minutes(member_id, minutes)
+        # update stream minutes too
+        dt_last_stream = common.timestamp_convert(
+            common.database.get([("memberID", member_id), ("timestampLastStream", '')], dbTable="leveling")[0][0])
+        now = datetime.now()
+        common.database.update([("memberID", member_id), ("timestampLastStream", now.timestamp())],
+                               dbTable="leveling")
+        minutes = common.time_delta_to_minutes(now - dt_last_stream)
+        await add_stream_minutes(member_id, minutes)
 
 
 class View(discord.ui.View):
@@ -101,10 +119,78 @@ class View(discord.ui.View):
         super().__init__(timeout=None)
 
 
+async def update_member_voice_xp(member: discord.Member, voice_channel: discord.VoiceChannel):
+    # 1 case joined member is the 1st member
+    # 2 case joined member is the one who fifth man
+    # 3 case joined member is the sixth man
+    # 4 case member streams
+    # 5 case member leaves
+
+    # To update voice if there was or was no xp multiplier beforehand
+    # gets current xp multiplier
+    # if there is xp multiplier then update voice xp
+    # else update timestamplastvoice to now
+    # then update xp multiplier to value now
+    async def update_member_xp(_member, val):
+        xp_m = common.database.get([("memberID", _member.id), ("xpMult", '')], dbTable="leveling")[0][0]
+        if xp_m > 0:
+            await update_voice(_member.id)
+        else:
+            common.database.update([("memberID", _member.id), ("timestampLastVoice", common.timestamp_convert(
+                datetime.now()))], dbTable="leveling")
+            common.database.update([("memberID", _member.id), ("timestampLastStream", common.timestamp_convert(
+                datetime.now()))], dbTable="leveling")
+        common.database.update([("memberID", _member.id), ("xpMult", val)], dbTable="leveling")
+
+    def get_xp_val(voice):
+        if not voice or not voice.channel or voice.afk or voice.self_deaf or voice.deaf:
+            return 0.
+        elif voice.channel and (voice.mute or voice.self_mute):
+            return .5
+        elif voice.channel and not (voice.deaf or voice.self_deaf or voice.afk):
+            return 1.
+
+    def get_stream_xp(voice: discord.VoiceState, n_actives):
+        if voice.self_stream:
+            return .5 * (n_actives - 1)
+        return 0
+
+    # get number of actives
+    # this has to be first because of deafen or leave
+    actives = 0
+    for member_ in voice_channel.members:
+        if not (member_.voice.deaf or member_.voice.self_deaf):
+            actives += 1
+
+    # if leave or deafen or afk then 0 for individual member
+    xp_1 = get_xp_val(member.voice)
+    if xp_1 == 0.:
+        await update_member_xp(member, 0.)
+    else:
+        # update individual member xp
+        xp_2 = get_stream_xp(member.voice, actives)
+        if actives >= common.num_active_double:
+            xp_1 = 2.
+        await update_member_xp(member, xp_1 + xp_2)
+
+    if actives >= common.num_active_double:
+        for member_ in voice_channel.members:
+            if not member_.id == member.id:
+                xp_2_ = get_stream_xp(member_.voice, actives)
+                await update_member_xp(member_, 2. + xp_2_)
+    else:
+        for member_ in voice_channel.members:
+            if not member.id == member.id:
+                xp_1_ = get_xp_val(member_.voice)
+                xp_2_ = get_stream_xp(member_.voice, actives)
+                await update_member_xp(member_, xp_1_ + xp_2_)
+
+
 class Leveling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.activeIDs = set()
+        # activeIDs = {voice_channel_id: [member_id, isStreaming],...}
+        self.activeIDs = {}
         self.creatingLeaderboard = False
         self.update = True
 
@@ -143,66 +229,13 @@ class Leveling(commands.Cog):
                 await remove_reaction_count(member_id)
                 await remove_experience(common.reaction_xp, member_id)
 
-    async def xp_mult_update(self, val, member_id):
-        # 1 case joined member is the 1st member
-        # 2 case joined member is the one who fifth man
-        # 3 case joined member is the sixth man
-        xp_m = common.database.get([("memberID", member_id), ("xpMult", '')], dbTable="leveling")[0][0]
-        if xp_m > 0:
-            await update_voice(member_id)
-        else:
-            common.database.update([("memberID", member_id), ("timestampLastVoice", common.timestamp_convert(
-                datetime.now()))], dbTable="leveling")
-        common.database.update([("memberID", member_id), ("xpMult", val)], dbTable="leveling")
-
-        if val > 0:
-            self.activeIDs.add(member_id)
-            if len(self.activeIDs) >= common.num_active_double:
-                for memberID in self.activeIDs:
-                    await update_voice(memberID)
-                    common.database.update([("memberID", memberID), ("xpMult", 2.)], dbTable="leveling")
-        else:
-            self.activeIDs.remove(member_id)
-            if len(self.activeIDs) < common.num_active_double:
-                for memberID in self.activeIDs.copy():
-                    xp_m = common.database.get([("memberID", memberID), ("xpMult", '')], dbTable="leveling")[0][0]
-                    if xp_m > 0:
-                        await update_voice(memberID)
-                    else:
-                        common.database.update(
-                            [("memberID", memberID), ("timestampLastVoice", common.timestamp_convert(
-                                datetime.now()))], dbTable="leveling")
-                    voice = common.get_member(self.bot, memberID).voice
-                    if not voice or not voice.channel or voice.deaf or voice.self_deaf or voice.afk:
-                        xp = 0.
-                        self.activeIDs.remove(memberID)
-                    elif voice.mute or voice.self_mute:
-                        xp = .5
-                    else:
-                        xp = 1.
-                    common.database.update([("memberID", memberID), ("xpMult", xp)], dbTable="leveling")
-
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if not member.bot and (member.guild.id == common.oasis_guild_id):
-            before_mute = before.mute or before.self_mute
-            before_deaf = before.deaf or before.self_deaf
-            after_mute = after.mute or after.self_mute
-            after_deaf = after.deaf or after.self_deaf
-
-            join = (not before.channel) and after.channel
-            leave = before.channel and (not after.channel)
-            muted = (not before_mute) and after_mute
-            unmute = before_mute and (not after_mute)
-            undeafen = before_deaf and (not after_deaf)
-            unafk = before.afk and (not after.afk)
-
-            if leave or after.afk or after_deaf:
-                await self.xp_mult_update(0., member.id)
-            elif muted or (join and after_mute) or (undeafen and after_mute) or (unafk and after_mute):
-                await self.xp_mult_update(.5, member.id)
-            elif join or unmute or (unafk and not after_mute):
-                await self.xp_mult_update(1., member.id)
+            if not member.voice:
+                await update_member_voice_xp(member, before.channel)
+            else:
+                await update_member_voice_xp(member, after.channel)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -212,11 +245,7 @@ class Leveling(commands.Cog):
         for voice_channel in guild.voice_channels:
             for member in voice_channel.members:
                 if not member.bot:
-                    voice = member.voice
-                    if voice.channel and (voice.mute or voice.self_mute):
-                        await self.xp_mult_update(.5, member.id)
-                    elif voice.channel and (not voice.deaf or not voice.self_deaf or not voice.afk):
-                        await self.xp_mult_update(1., member.id)
+                    await update_member_voice_xp(member, voice_channel)
         while self.update:
             for memberID in common.database.get_ids():
                 await update_passive_xp(memberID)
@@ -239,7 +268,7 @@ class Leveling(commands.Cog):
                     await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
                                                f"{level}!:arrow_double_up:")
                 else:
-                    await general_channel.send(f"Good job @{member.id}:confetti_ball:, you progressed to level "
+                    await general_channel.send(f"Good job <@{member.id}>:confetti_ball:, you progressed to level "
                                                f"{level}!:arrow_double_up:")
 
     @commands.command(name="level", alias=['l'])
@@ -278,12 +307,12 @@ class Leveling(commands.Cog):
         for stats in common.database.get_stats()[page * 10:page * 10 + 10]:
             avatar = await common.get_member(self.bot, stats[-1]).display_avatar.read()
             thumbnail = Image.open(io.BytesIO(avatar))
-            level = stats[7]
-            xp = stats[6]
+            level = stats[8]
+            xp = stats[7]
             needed_xp = next_level(level + 1) - next_level(level)
             current_xp = xp - next_level(level)
             row = (stats[0] - 1, thumbnail, stats[1], nr(stats[2]), nr(stats[3]), nr(stats[4]), nr(stats[5]),
-                   nr(xp), nr(level), current_xp / needed_xp)
+                   nr(stats[6]), nr(xp), nr(level), current_xp / needed_xp)
             row_data.append(row)
         card = io.BytesIO()
         Leaderboard(row_data).canvas.save(card, "PNG")
@@ -372,20 +401,6 @@ class Leveling(commands.Cog):
                 self.update = False
             else:
                 self.update = True
-
-    # @commands.command(name="test", alias=['t'])
-    # async def test(self, ctx):
-    #     print("hello there")
-        # message_id = common.database.get([("guildID", common.oasis_guild_id), ("leaderboardMessageID", '')],
-        #                                  dbTable="memory")[0][0]
-        # message = await self.bot.get_channel(common.leaderboards_channel_id).fetch_message(message_id)
-        # print(message.components[0].children)
-        # for child in message.components[0].children:
-        #     child.disabled = True
-        # print("sleeping")
-        # await asyncio.sleep(10)
-        # for child in message.components[0].children:
-        #     child.disabled = False
 
 
 def setup(bot):
