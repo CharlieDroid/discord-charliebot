@@ -9,7 +9,9 @@ from app import common
 from app.level_card import LevelCard
 from app.leaderboard import Leaderboard
 from app.common import number_readability as nr
+from app.common import add_experience, remove_experience
 from math import ceil, exp
+from cogs.game import parse_quest_progress
 
 
 def next_level(level):
@@ -20,6 +22,7 @@ async def add_message_count(member_id):
     try:
         messages = common.database.get([("memberID", member_id), ("messages", '')], dbTable="leveling")[0][0]
         common.database.update([("memberID", member_id), ("messages", messages + 1)], dbTable="leveling")
+        await parse_quest_progress(member_id, "message", 1.)
     except IndexError:
         print(f"member_id={member_id}")
 
@@ -27,15 +30,17 @@ async def add_message_count(member_id):
 async def add_voice_minutes(member_id, voice_minutes):
     old_voice_minutes = common.database.get([("memberID", member_id), ("voiceMinutes", '')], dbTable="leveling")[0][0]
     common.database.update(
-        [("memberID", member_id), ("voiceMinutes", common.round_off(old_voice_minutes + voice_minutes))],
+        [("memberID", member_id), ("voiceMinutes", common.rnd(old_voice_minutes + voice_minutes))],
         dbTable="leveling")
+    await parse_quest_progress(member_id, "voice", voice_minutes)
 
 
 async def add_stream_minutes(member_id, stream_minutes):
     old_stream_minutes = common.database.get([("memberID", member_id), ("streamMinutes", '')], dbTable="leveling")[0][0]
     common.database.update(
-        [("memberID", member_id), ("streamMinutes", common.round_off(old_stream_minutes + stream_minutes))],
+        [("memberID", member_id), ("streamMinutes", common.rnd(old_stream_minutes + stream_minutes))],
         dbTable="leveling")
+    await parse_quest_progress(member_id, "stream", stream_minutes)
 
 
 async def add_passive_hours(member_id, passive_hours):
@@ -44,36 +49,20 @@ async def add_passive_hours(member_id, passive_hours):
         old_passive_hours = common.database.get([("memberID", member_id), ("passiveHours", '')], dbTable="leveling")[0][
             0]
         common.database.update(
-            [("memberID", member_id), ("passiveHours", common.round_off(old_passive_hours + passive_hours))],
+            [("memberID", member_id), ("passiveHours", common.rnd(old_passive_hours + passive_hours))],
             dbTable="leveling")
 
 
 async def add_reaction_count(member_id):
     reactions = common.database.get([("memberID", member_id), ("reactions", '')], dbTable="leveling")[0][0]
     common.database.update([("memberID", member_id), ("reactions", reactions + 1)], dbTable="leveling")
+    await parse_quest_progress(member_id, "reaction", 1.)
 
 
 async def remove_reaction_count(member_id):
     reactions = common.database.get([("memberID", member_id), ("reactions", '')], dbTable="leveling")[0][0]
     common.database.update([("memberID", member_id), ("reactions", reactions - 1)], dbTable="leveling")
-
-
-async def add_experience(xp, member_id, timestamp_update=None, in_server=True):
-    if in_server:
-        xp = common.round_off(xp)
-        old_experience = common.database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
-        common.database.update([("memberID", member_id), ("experience", xp + old_experience)], dbTable='leveling')
-    if timestamp_update:
-        common.database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')
-
-
-async def remove_experience(xp, member_id, timestamp_update=None, in_server=True):
-    if in_server:
-        xp = common.round_off(xp)
-        old_experience = common.database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
-        common.database.update([("memberID", member_id), ("experience", old_experience - xp)], dbTable='leveling')
-    if timestamp_update:
-        common.database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')
+    await parse_quest_progress(member_id, "reaction", -1.)
 
 
 async def update_passive_xp(member_id):
@@ -91,7 +80,7 @@ async def update_passive_xp(member_id):
         await add_passive_hours(member_id, passive_hours)
 
 
-async def update_voice(member_id):
+async def update_voice(member_id, isStream):
     xp_mult = common.database.get([("memberID", member_id), ("xpMult", '')], dbTable="leveling")[0][0]
     if xp_mult:
         # update last voice timestamp and add xp and stats
@@ -110,8 +99,9 @@ async def update_voice(member_id):
         now = datetime.now()
         common.database.update([("memberID", member_id), ("timestampLastStream", now.timestamp())],
                                dbTable="leveling")
-        minutes = common.time_delta_to_minutes(now - dt_last_stream)
-        await add_stream_minutes(member_id, minutes)
+        if isStream:
+            minutes = common.time_delta_to_minutes(now - dt_last_stream)
+            await add_stream_minutes(member_id, minutes)
 
 
 class View(discord.ui.View):
@@ -131,16 +121,16 @@ async def update_member_voice_xp(member: discord.Member, voice_channel: discord.
     # if there is xp multiplier then update voice xp
     # else update timestamplastvoice to now
     # then update xp multiplier to value now
-    async def update_member_xp(_member, val):
+    async def update_member_xp(_member, xp1, xp2):
         xp_m = common.database.get([("memberID", _member.id), ("xpMult", '')], dbTable="leveling")[0][0]
         if xp_m > 0:
-            await update_voice(_member.id)
+            await update_voice(_member.id, xp2 > 0)
         else:
             common.database.update([("memberID", _member.id), ("timestampLastVoice", common.timestamp_convert(
                 datetime.now()))], dbTable="leveling")
             common.database.update([("memberID", _member.id), ("timestampLastStream", common.timestamp_convert(
                 datetime.now()))], dbTable="leveling")
-        common.database.update([("memberID", _member.id), ("xpMult", val)], dbTable="leveling")
+        common.database.update([("memberID", _member.id), ("xpMult", xp1 + xp2)], dbTable="leveling")
 
     def get_xp_val(voice):
         if not voice or not voice.channel or voice.afk or voice.self_deaf or voice.deaf:
@@ -165,25 +155,25 @@ async def update_member_voice_xp(member: discord.Member, voice_channel: discord.
     # if leave or deafen or afk then 0 for individual member
     xp_1 = get_xp_val(member.voice)
     if xp_1 == 0.:
-        await update_member_xp(member, 0.)
+        await update_member_xp(member, 0., 0.)
     else:
         # update individual member xp
         xp_2 = get_stream_xp(member.voice, actives)
         if actives >= common.num_active_double:
             xp_1 = 2.
-        await update_member_xp(member, xp_1 + xp_2)
+        await update_member_xp(member, xp_1, xp_2)
 
     if actives >= common.num_active_double:
         for member_ in voice_channel.members:
             if not member_.id == member.id:
                 xp_2_ = get_stream_xp(member_.voice, actives)
-                await update_member_xp(member_, 2. + xp_2_)
+                await update_member_xp(member_, 2., xp_2_)
     else:
         for member_ in voice_channel.members:
             if not member.id == member.id:
                 xp_1_ = get_xp_val(member_.voice)
                 xp_2_ = get_stream_xp(member_.voice, actives)
-                await update_member_xp(member_, xp_1_ + xp_2_)
+                await update_member_xp(member_, xp_1_, xp_2_)
 
 
 class Leveling(commands.Cog):
@@ -213,21 +203,21 @@ class Leveling(commands.Cog):
         if not payload.member.bot and payload.guild_id == common.oasis_guild_id:
             channel = self.bot.get_channel(payload.channel_id)
             message = await channel.fetch_message(payload.message_id)
-            if not message.author.bot:
-                member_id = message.author.id
-                await add_reaction_count(member_id)
-                await add_experience(common.reaction_xp, member_id)
+            message_author = message.author.id
+            if not message.author.bot and not (message_author == payload.user_id):
+                await add_reaction_count(message_author)
+                await add_experience(common.reaction_xp, message_author)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
-        member = common.get_member(self.bot, payload.user_id)
-        if not member.bot and payload.guild_id == common.oasis_guild_id:
+        payload_member = common.get_member(self.bot, payload.user_id)
+        if not payload_member.bot and payload.guild_id == common.oasis_guild_id:
             channel = await self.bot.fetch_channel(payload.channel_id)
             message = await channel.fetch_message(payload.message_id)
-            if not message.author.bot:
-                member_id = message.author.id
-                await remove_reaction_count(member_id)
-                await remove_experience(common.reaction_xp, member_id)
+            message_author = message.author.id
+            if not message.author.bot and not (message_author == payload_member.id):
+                await remove_reaction_count(message_author)
+                await remove_experience(common.reaction_xp, message_author)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -246,10 +236,15 @@ class Leveling(commands.Cog):
             for member in voice_channel.members:
                 if not member.bot:
                     await update_member_voice_xp(member, voice_channel)
+
         while self.update:
             for memberID in common.database.get_ids():
                 await update_passive_xp(memberID)
-                await update_voice(memberID)
+                member = common.get_member(self.bot, memberID)
+                is_stream = False
+                if member and member.voice and member.voice.self_stream:
+                    is_stream = True
+                await update_voice(memberID, is_stream)
                 await self.update_level(memberID)
             await asyncio.sleep(60)
 
@@ -264,11 +259,13 @@ class Leveling(commands.Cog):
             if (level < 4) or (level % ceil((5.01443 * (exp(-0.0350659 * level)))) == 0):
                 general_channel = await self.bot.fetch_channel(common.general_channel_id)
                 member = common.get_member(self.bot, member_id)
-                if level <= 50:
+                if level <= 70:
                     await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
                                                f"{level}!:arrow_double_up:")
                 else:
-                    await general_channel.send(f"Good job <@{member.id}>:confetti_ball:, you progressed to level "
+                    # await general_channel.send(f"Good job <@{member.id}>:confetti_ball:, you progressed to level "
+                    #                            f"{level}!:arrow_double_up:")
+                    await general_channel.send(f"Good job {member.name}:confetti_ball:, you progressed to level "
                                                f"{level}!:arrow_double_up:")
 
     @commands.command(name="level", alias=['l'])

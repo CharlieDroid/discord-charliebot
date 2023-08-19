@@ -7,12 +7,12 @@ kou_id = 498374117561597972
 owner_id = 799843363058221076
 the_council_id = [owner_id, kou_id]
 oasis_guild_id = 811395891122012180
-skewl_guild_id = 498402270472306689
 welcome_channel_id = 811395892338622504
 general_channel_id = 811395892338622507
 leaderboards_channel_id = 881400374085443614
+questboard_channel_id = 1120749088950980709
 the_council_channel_id = 815501027381870603
-welcome_message_id = 1060942303394541568
+welcome_message_id = 811395892338622504
 nsfw_channel_id = 811395892338622510
 plans_channel_id = 1093922720082821210
 
@@ -40,7 +40,15 @@ ban_violation_count = 12
 ban_violation_time = 90
 threshold_count = 20
 
+ur_prob = 0.0006
+sr_prob = 0.024
+r_prob = 0.065
+ur_max_prob = 0.006
+sr_max_prob = 0.096
+r_max_prob = 0.26
+quest_defaults = [("stream", 40), ("message", 20), ("voice", 120), ("reaction", 15)]
 bot_prefixes = ('!', '~', '-', '_', '.', 'ch!', 'pls', 'p!', 'm!')
+quest_xp = 300_000  # obtained via formula 3.5*quest_xp = total_xp_wanted
 num_active_double = 5
 normal_message_xp = 200
 reaction_xp = 400
@@ -106,7 +114,7 @@ def snowflake_to_timestamp(snowflake):
 def minutes_to_seconds(minutes): return minutes * 60
 
 
-def round_off(floatNum): return round(floatNum, 3)
+def rnd(num): return round(num, 3)
 
 
 def time_delta_to_hours(time_delta):
@@ -148,3 +156,21 @@ def ordinal(n):
     else:
         suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
     return str(n) + suffix
+
+
+async def add_experience(xp, member_id, timestamp_update=None, in_server=True):
+    if in_server:
+        xp = rnd(xp)
+        old_experience = database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
+        database.update([("memberID", member_id), ("experience", xp + old_experience)], dbTable='leveling')
+    if timestamp_update:
+        database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')
+
+
+async def remove_experience(xp, member_id, timestamp_update=None, in_server=True):
+    if in_server:
+        xp = rnd(xp)
+        old_experience = database.get([("memberID", member_id), ("experience", '')], dbTable='leveling')[0][0]
+        database.update([("memberID", member_id), ("experience", old_experience - xp)], dbTable='leveling')
+    if timestamp_update:
+        database.update([("memberID", member_id), ("timestampLastUpdate", timestamp_update)], dbTable='leveling')

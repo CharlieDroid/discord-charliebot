@@ -8,6 +8,8 @@ import asyncio
 from datetime import datetime
 from random import randint, choice
 from app import common
+from mcstatus import MinecraftServer
+from socket import timeout
 
 
 class Features(commands.Cog):
@@ -73,6 +75,19 @@ class Features(commands.Cog):
             embed.add_field(name=games[i], value=dates[i], inline=False)
         await ctx.send(embed=embed)
 
+    @commands.command(name="minecraft", aliases=["mc"])
+    async def minecraft(self, ctx, ip=None):
+        ip_address = "49.145.116.25:2565"
+        if ip:
+            ip_address = ip
+
+        try:
+            server = MinecraftServer.lookup(ip_address)
+            server.ping()
+            await ctx.send(f"ip: {ip_address}\n`Nig gana na`")
+        except (ConnectionRefusedError, timeout) as error:
+            await ctx.send(f"ip: {ip_address}\n`{error}`")
+
     @commands.command(name="study", aliases=["st"])
     async def study(self, ctx, num=1):
         await ctx.send("No code here")
@@ -88,6 +103,11 @@ class Features(commands.Cog):
     async def on_command_error(self, ctx, error):
         if isinstance(error, discord.errors.Forbidden):
             await ctx.send(f"I am missing permissions.")
+
+    @commands.Cog.listener()
+    async def on_application_command_error(self, ctx: discord.ApplicationContext, error: discord.DiscordException):
+        raise error  # Here we raise other errors to ensure they aren't ignored
+        # add this to file soon
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):

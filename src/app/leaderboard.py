@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
+from os import path
 
 
 def round_off(num):
@@ -50,8 +51,8 @@ class Leaderboard:
         if imageName:
             self.imageObject = Image.open(imageName).convert("RGBA")
 
-        self.normalFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica.ttf"
-        self.boldFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica-Bold.ttf"
+        self.normalFont = path.abspath(path.join(__file__, '../../../data/Helvetica.ttf'))
+        self.boldFont = path.abspath(path.join(__file__, '../../../data/Helvetica-Bold.ttf'))
         self.mediumFont = ImageFont.truetype(self.normalFont, self.smallFontSize)
         self.boldLargeFont = ImageFont.truetype(self.boldFont, self.mediumFontSize)
         self.boldMediumFont = ImageFont.truetype(self.boldFont, self.largeFontSize)
@@ -172,6 +173,7 @@ class Leaderboard:
         return imXLoc + self.thumbnailSize[0]
 
 
+
 # imageObject = Image.open(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\data\default.png")
 # rowData = [(0, imageObject, "CharliePeepo", '200.2K', '138.8K', '4820', '100', '11.7K', '64.5M', '124', 0.10),
 #            (1, imageObject, "Kou", '10.5K', '63.1K', '305', '100', '11.7K', '29.5M', '95', 0.5),
@@ -179,3 +181,4 @@ class Leaderboard:
 #            (3, imageObject, "Jooji", '100.1', '49.8K', '614', '1480', '39.7M', '68', 0.6)]
 # lb = Leaderboard(rowData)
 # lb.canvas.show()
+# lb.canvas.save(r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\test.png")

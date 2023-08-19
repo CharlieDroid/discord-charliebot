@@ -55,6 +55,8 @@ class DiscordDatabase:
                              numViolations, timestampLastViolation, lastMessage, counter, inServer))
         self.cursor.execute(f"INSERT INTO leveling(memberID, memberUsername) VALUES(?, ?)",
                             (memberID, memberUsername))
+        self.cursor.execute(f"INSERT INTO game(memberID, memberUsername) VALUES(?, ?)",
+                            (memberID, memberUsername))
         # must insert value 0 in memory because no row will be made
         self.connection.commit()
 

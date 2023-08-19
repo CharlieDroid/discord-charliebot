@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
+from os import path
 from discord import Status
 
 
@@ -43,8 +44,8 @@ class LevelCard:
         self.imageObject = imageObject.convert("RGBA")
 
         # font type and different sizes of the font
-        self.normalFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica.ttf"
-        self.boldFont = r"C:\Users\Charles\Documents\Python Scripts\Discord 3.0\scratch\Helvetica-Bold.ttf"
+        self.normalFont = path.abspath(path.join(__file__, '../../../data/Helvetica.ttf'))
+        self.boldFont = path.abspath(path.join(__file__, '../../../data/Helvetica-Bold.ttf'))
         self.mediumFont = ImageFont.truetype(self.normalFont, self.smallFontSize)
         self.boldLargeFont = ImageFont.truetype(self.boldFont, self.mediumFontSize)
 
